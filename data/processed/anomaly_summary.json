@@ -1,0 +1,24 @@
+{
+  "n_routes": 567,
+  "n_alta": 3,
+  "n_media": 24,
+  "n_normale": 540,
+  "consensus_routes": [],
+  "model_weights": {
+    "isolation_forest": 0.4,
+    "lof": 0.35,
+    "z_score": 0.25
+  },
+  "top10_routes": [
+    "GYD-FCO",
+    "ALG-MXP",
+    "KIV-FCO",
+    "RUH-VCE",
+    "HRG-NAP",
+    "CGK-FCO",
+    "DAR-FCO",
+    "EVN-VCE",
+    "RAK-CIA",
+    "IKA-VCE"
+  ]
+}

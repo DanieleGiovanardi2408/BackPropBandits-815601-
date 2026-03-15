@@ -1,0 +1,791 @@
+{
+  "metadata": {
+    "n_total": 567,
+    "n_critico": 1,
+    "n_alto": 12,
+    "n_medio": 14,
+    "n_basso": 540,
+    "n_alert": 27,
+    "alert_rate_pct": 4.76,
+    "conf_threshold": 0.2,
+    "top_route": "JED-VCE",
+    "top_country": "Arabia Saudita"
+  },
+  "profiles": [
+    {
+      "rotta": "ALG-MXP",
+      "paese_partenza": "Algeria",
+      "zona": "ND",
+      "risk_level": "CRITICO",
+      "anomaly_label": "ALTA",
+      "confidence": 0.5209,
+      "anomaly_score": 0.4682,
+      "br_score": 3,
+      "n_anomalie_baseline": 3,
+      "feature_anomale": [
+        "tasso_rilevanza",
+        "tasso_allarme_medio",
+        "tasso_fermati"
+      ],
+      "business_rules_attive": [
+        "Esiti rischio elevati (respinti/fermati)",
+        "Multi-segnale baseline (≥3 feature anomale)",
+        "Significativa presenza SDI/NSIS"
+      ],
+      "indicatori": {
+        "tot_allarmi": 178,
+        "tot_allarmi_log": 5.1874,
+        "pct_interpol": 0.25,
+        "pct_sdi": 0.5,
+        "pct_nsis": 0.0,
+        "score_rischio_esiti": 0.4,
+        "tasso_fermati": 1.0,
+        "tasso_respinti": 0.0,
+        "score_composito": 0.4848
+      },
+      "raccomandazione": "Allerta immediata — verifica manuale obbligatoria e segnalazione superiori"
+    },
+    {
+      "rotta": "JED-VCE",
+      "paese_partenza": "Arabia Saudita",
+      "zona": "ND",
+      "risk_level": "ALTO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.5242,
+      "anomaly_score": 0.3403,
+      "br_score": 4,
+      "n_anomalie_baseline": 3,
+      "feature_anomale": [
+        "pct_interpol",
+        "tasso_respinti",
+        "tasso_fermati"
+      ],
+      "business_rules_attive": [
+        "Alta presenza INTERPOL",
+        "Esiti rischio elevati (respinti/fermati)",
+        "Multi-segnale baseline (≥3 feature anomale)",
+        "Significativa presenza SDI/NSIS"
+      ],
+      "indicatori": {
+        "tot_allarmi": 212,
+        "tot_allarmi_log": 5.3613,
+        "pct_interpol": 0.5,
+        "pct_sdi": 0.0,
+        "pct_nsis": 0.5,
+        "score_rischio_esiti": 0.4,
+        "tasso_fermati": 0.4,
+        "tasso_respinti": 0.4,
+        "score_composito": 0.3775
+      },
+      "raccomandazione": "Monitoraggio rafforzato — aumentare frequenza ispezioni sulla rotta"
+    },
+    {
+      "rotta": "RUH-VCE",
+      "paese_partenza": "Arabia Saudita",
+      "zona": "ND",
+      "risk_level": "ALTO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.5011,
+      "anomaly_score": 0.4352,
+      "br_score": 3,
+      "n_anomalie_baseline": 4,
+      "feature_anomale": [
+        "pct_sdi",
+        "tasso_allarme_medio",
+        "score_rischio_esiti",
+        "tasso_respinti"
+      ],
+      "business_rules_attive": [
+        "Esiti rischio elevati (respinti/fermati)",
+        "Multi-segnale baseline (≥3 feature anomale)",
+        "Significativa presenza SDI/NSIS"
+      ],
+      "indicatori": {
+        "tot_allarmi": 4,
+        "tot_allarmi_log": 1.6094,
+        "pct_interpol": 0.0,
+        "pct_sdi": 1.0,
+        "pct_nsis": 0.0,
+        "score_rischio_esiti": 0.6,
+        "tasso_fermati": 0.0,
+        "tasso_respinti": 1.0,
+        "score_composito": 0.2588
+      },
+      "raccomandazione": "Monitoraggio rafforzato — aumentare frequenza ispezioni sulla rotta"
+    },
+    {
+      "rotta": "EVN-VCE",
+      "paese_partenza": "Armenia",
+      "zona": "ND",
+      "risk_level": "ALTO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.4772,
+      "anomaly_score": 0.3953,
+      "br_score": 3,
+      "n_anomalie_baseline": 3,
+      "feature_anomale": [
+        "tasso_allarme_medio",
+        "score_rischio_esiti",
+        "tasso_respinti"
+      ],
+      "business_rules_attive": [
+        "Esiti rischio elevati (respinti/fermati)",
+        "Multi-segnale baseline (≥3 feature anomale)",
+        "Significativa presenza SDI/NSIS"
+      ],
+      "indicatori": {
+        "tot_allarmi": 114,
+        "tot_allarmi_log": 4.7449,
+        "pct_interpol": 0.0,
+        "pct_sdi": 0.4286,
+        "pct_nsis": 0.1429,
+        "score_rischio_esiti": 0.6,
+        "tasso_fermati": 0.0,
+        "tasso_respinti": 1.0,
+        "score_composito": 0.3538
+      },
+      "raccomandazione": "Monitoraggio rafforzato — aumentare frequenza ispezioni sulla rotta"
+    },
+    {
+      "rotta": "RAK-CIA",
+      "paese_partenza": "Marocco",
+      "zona": "ND",
+      "risk_level": "ALTO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.396,
+      "anomaly_score": 0.3934,
+      "br_score": 2,
+      "n_anomalie_baseline": 2,
+      "feature_anomale": [
+        "tasso_rilevanza",
+        "tasso_respinti"
+      ],
+      "business_rules_attive": [
+        "Esiti rischio elevati (respinti/fermati)",
+        "Significativa presenza SDI/NSIS"
+      ],
+      "indicatori": {
+        "tot_allarmi": 51,
+        "tot_allarmi_log": 3.9512,
+        "pct_interpol": 0.1,
+        "pct_sdi": 0.1,
+        "pct_nsis": 0.3,
+        "score_rischio_esiti": 0.48,
+        "tasso_fermati": 0.0,
+        "tasso_respinti": 0.8,
+        "score_composito": 0.4528
+      },
+      "raccomandazione": "Monitoraggio rafforzato — aumentare frequenza ispezioni sulla rotta"
+    },
+    {
+      "rotta": "LHR-VCE",
+      "paese_partenza": "Regno Unito",
+      "zona": "ND",
+      "risk_level": "ALTO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.3911,
+      "anomaly_score": 0.3852,
+      "br_score": 2,
+      "n_anomalie_baseline": 2,
+      "feature_anomale": [
+        "score_rischio_esiti",
+        "tasso_respinti"
+      ],
+      "business_rules_attive": [
+        "Alta presenza INTERPOL",
+        "Esiti rischio elevati (respinti/fermati)"
+      ],
+      "indicatori": {
+        "tot_allarmi": 2431,
+        "tot_allarmi_log": 7.7965,
+        "pct_interpol": 0.4359,
+        "pct_sdi": 0.1026,
+        "pct_nsis": 0.1795,
+        "score_rischio_esiti": 0.5333,
+        "tasso_fermati": 0.3333,
+        "tasso_respinti": 0.6667,
+        "score_composito": 0.5634
+      },
+      "raccomandazione": "Monitoraggio rafforzato — aumentare frequenza ispezioni sulla rotta"
+    },
+    {
+      "rotta": "GYD-FCO",
+      "paese_partenza": "Azerbaigian",
+      "zona": "ND",
+      "risk_level": "ALTO",
+      "anomaly_label": "ALTA",
+      "confidence": 0.3877,
+      "anomaly_score": 0.5128,
+      "br_score": 1,
+      "n_anomalie_baseline": 0,
+      "feature_anomale": [],
+      "business_rules_attive": [
+        "Significativa presenza SDI/NSIS"
+      ],
+      "indicatori": {
+        "tot_allarmi": 5,
+        "tot_allarmi_log": 1.7918,
+        "pct_interpol": 0.25,
+        "pct_sdi": 0.0,
+        "pct_nsis": 0.25,
+        "score_rischio_esiti": 0.0,
+        "tasso_fermati": 0.0,
+        "tasso_respinti": 0.0,
+        "score_composito": 0.0918
+      },
+      "raccomandazione": "Monitoraggio rafforzato — aumentare frequenza ispezioni sulla rotta"
+    },
+    {
+      "rotta": "CMN-BLQ",
+      "paese_partenza": "Marocco",
+      "zona": "ND",
+      "risk_level": "ALTO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.3852,
+      "anomaly_score": 0.3753,
+      "br_score": 2,
+      "n_anomalie_baseline": 2,
+      "feature_anomale": [
+        "tasso_rilevanza",
+        "tasso_respinti"
+      ],
+      "business_rules_attive": [
+        "Alta presenza INTERPOL",
+        "Significativa presenza SDI/NSIS"
+      ],
+      "indicatori": {
+        "tot_allarmi": 919,
+        "tot_allarmi_log": 6.8244,
+        "pct_interpol": 0.3043,
+        "pct_sdi": 0.3478,
+        "pct_nsis": 0.1304,
+        "score_rischio_esiti": 0.4,
+        "tasso_fermati": 0.0,
+        "tasso_respinti": 0.6667,
+        "score_composito": 0.5425
+      },
+      "raccomandazione": "Monitoraggio rafforzato — aumentare frequenza ispezioni sulla rotta"
+    },
+    {
+      "rotta": "SIN-MXP",
+      "paese_partenza": "Singapore",
+      "zona": "ND",
+      "risk_level": "ALTO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.3788,
+      "anomaly_score": 0.3646,
+      "br_score": 2,
+      "n_anomalie_baseline": 2,
+      "feature_anomale": [
+        "score_rischio_esiti",
+        "tasso_respinti"
+      ],
+      "business_rules_attive": [
+        "Esiti rischio elevati (respinti/fermati)",
+        "Significativa presenza SDI/NSIS"
+      ],
+      "indicatori": {
+        "tot_allarmi": 1436,
+        "tot_allarmi_log": 7.2703,
+        "pct_interpol": 0.0,
+        "pct_sdi": 0.2308,
+        "pct_nsis": 0.2308,
+        "score_rischio_esiti": 0.6,
+        "tasso_fermati": 0.0,
+        "tasso_respinti": 1.0,
+        "score_composito": 0.5054
+      },
+      "raccomandazione": "Monitoraggio rafforzato — aumentare frequenza ispezioni sulla rotta"
+    },
+    {
+      "rotta": "TUN-BLQ",
+      "paese_partenza": "Tunisia",
+      "zona": "ND",
+      "risk_level": "ALTO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.3647,
+      "anomaly_score": 0.3411,
+      "br_score": 2,
+      "n_anomalie_baseline": 2,
+      "feature_anomale": [
+        "score_rischio_esiti",
+        "tasso_respinti"
+      ],
+      "business_rules_attive": [
+        "Volume allarmi elevato",
+        "Esiti rischio elevati (respinti/fermati)"
+      ],
+      "indicatori": {
+        "tot_allarmi": 10534,
+        "tot_allarmi_log": 9.2625,
+        "pct_interpol": 0.1,
+        "pct_sdi": 0.1,
+        "pct_nsis": 0.2,
+        "score_rischio_esiti": 0.6,
+        "tasso_fermati": 0.0,
+        "tasso_respinti": 1.0,
+        "score_composito": 0.5058
+      },
+      "raccomandazione": "Monitoraggio rafforzato — aumentare frequenza ispezioni sulla rotta"
+    },
+    {
+      "rotta": "GLA-FCO",
+      "paese_partenza": "Regno Unito",
+      "zona": "ND",
+      "risk_level": "ALTO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.3487,
+      "anomaly_score": 0.3145,
+      "br_score": 2,
+      "n_anomalie_baseline": 2,
+      "feature_anomale": [
+        "score_rischio_esiti",
+        "tasso_respinti"
+      ],
+      "business_rules_attive": [
+        "Esiti rischio elevati (respinti/fermati)",
+        "Significativa presenza SDI/NSIS"
+      ],
+      "indicatori": {
+        "tot_allarmi": 176,
+        "tot_allarmi_log": 5.1761,
+        "pct_interpol": 0.0,
+        "pct_sdi": 0.5,
+        "pct_nsis": 0.0,
+        "score_rischio_esiti": 0.6,
+        "tasso_fermati": 0.0,
+        "tasso_respinti": 1.0,
+        "score_composito": 0.3669
+      },
+      "raccomandazione": "Monitoraggio rafforzato — aumentare frequenza ispezioni sulla rotta"
+    },
+    {
+      "rotta": "BOS-FCO",
+      "paese_partenza": "Stati Uniti",
+      "zona": "ND",
+      "risk_level": "ALTO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.3485,
+      "anomaly_score": 0.3141,
+      "br_score": 2,
+      "n_anomalie_baseline": 2,
+      "feature_anomale": [
+        "tasso_allarme_medio",
+        "tasso_fermati"
+      ],
+      "business_rules_attive": [
+        "Alta presenza INTERPOL",
+        "Significativa presenza SDI/NSIS"
+      ],
+      "indicatori": {
+        "tot_allarmi": 554,
+        "tot_allarmi_log": 6.319,
+        "pct_interpol": 0.3333,
+        "pct_sdi": 0.3333,
+        "pct_nsis": 0.0,
+        "score_rischio_esiti": 0.2,
+        "tasso_fermati": 0.5,
+        "tasso_respinti": 0.0,
+        "score_composito": 0.3116
+      },
+      "raccomandazione": "Monitoraggio rafforzato — aumentare frequenza ispezioni sulla rotta"
+    },
+    {
+      "rotta": "KIV-FCO",
+      "paese_partenza": "Moldavia",
+      "zona": "ND",
+      "risk_level": "ALTO",
+      "anomaly_label": "ALTA",
+      "confidence": 0.2735,
+      "anomaly_score": 0.4558,
+      "br_score": 0,
+      "n_anomalie_baseline": 1,
+      "feature_anomale": [
+        "tasso_allarme_medio"
+      ],
+      "business_rules_attive": [],
+      "indicatori": {
+        "tot_allarmi": 187,
+        "tot_allarmi_log": 5.2364,
+        "pct_interpol": 0.0,
+        "pct_sdi": 0.0,
+        "pct_nsis": 0.0,
+        "score_rischio_esiti": 0.0,
+        "tasso_fermati": 0.0,
+        "tasso_respinti": 0.0,
+        "score_composito": 0.1587
+      },
+      "raccomandazione": "Monitoraggio rafforzato — aumentare frequenza ispezioni sulla rotta"
+    },
+    {
+      "rotta": "HRG-NAP",
+      "paese_partenza": "Egitto",
+      "zona": "ND",
+      "risk_level": "MEDIO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.3393,
+      "anomaly_score": 0.4322,
+      "br_score": 1,
+      "n_anomalie_baseline": 1,
+      "feature_anomale": [
+        "tasso_allarme_medio"
+      ],
+      "business_rules_attive": [
+        "Significativa presenza SDI/NSIS"
+      ],
+      "indicatori": {
+        "tot_allarmi": 155,
+        "tot_allarmi_log": 5.0499,
+        "pct_interpol": 0.0,
+        "pct_sdi": 0.5,
+        "pct_nsis": 0.0,
+        "score_rischio_esiti": 0.0,
+        "tasso_fermati": 0.0,
+        "tasso_respinti": 0.0,
+        "score_composito": 0.1531
+      },
+      "raccomandazione": "Sotto osservazione — mantenere attenzione elevata nei prossimi 30 giorni"
+    },
+    {
+      "rotta": "RAK-TSF",
+      "paese_partenza": "Marocco",
+      "zona": "ND",
+      "risk_level": "MEDIO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.2913,
+      "anomaly_score": 0.3521,
+      "br_score": 1,
+      "n_anomalie_baseline": 2,
+      "feature_anomale": [
+        "pct_nsis",
+        "tasso_rilevanza"
+      ],
+      "business_rules_attive": [
+        "Significativa presenza SDI/NSIS"
+      ],
+      "indicatori": {
+        "tot_allarmi": 333,
+        "tot_allarmi_log": 5.8111,
+        "pct_interpol": 0.0,
+        "pct_sdi": 0.0,
+        "pct_nsis": 0.625,
+        "score_rischio_esiti": 0.0,
+        "tasso_fermati": 0.0,
+        "tasso_respinti": 0.0,
+        "score_composito": 0.3262
+      },
+      "raccomandazione": "Sotto osservazione — mantenere attenzione elevata nei prossimi 30 giorni"
+    },
+    {
+      "rotta": "PVG-MXP",
+      "paese_partenza": "Cina",
+      "zona": "ND",
+      "risk_level": "MEDIO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.2802,
+      "anomaly_score": 0.3337,
+      "br_score": 1,
+      "n_anomalie_baseline": 2,
+      "feature_anomale": [
+        "tasso_rilevanza",
+        "tasso_allarme_medio"
+      ],
+      "business_rules_attive": [
+        "Alta presenza INTERPOL"
+      ],
+      "indicatori": {
+        "tot_allarmi": 311,
+        "tot_allarmi_log": 5.743,
+        "pct_interpol": 0.3,
+        "pct_sdi": 0.2,
+        "pct_nsis": 0.0,
+        "score_rischio_esiti": 0.0,
+        "tasso_fermati": 0.0,
+        "tasso_respinti": 0.0,
+        "score_composito": 0.3691
+      },
+      "raccomandazione": "Sotto osservazione — mantenere attenzione elevata nei prossimi 30 giorni"
+    },
+    {
+      "rotta": "RMO-MXP",
+      "paese_partenza": "Moldavia",
+      "zona": "ND",
+      "risk_level": "MEDIO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.2719,
+      "anomaly_score": 0.3199,
+      "br_score": 1,
+      "n_anomalie_baseline": 1,
+      "feature_anomale": [
+        "tasso_rilevanza"
+      ],
+      "business_rules_attive": [
+        "Significativa presenza SDI/NSIS"
+      ],
+      "indicatori": {
+        "tot_allarmi": 26,
+        "tot_allarmi_log": 3.2958,
+        "pct_interpol": 0.0,
+        "pct_sdi": 0.3333,
+        "pct_nsis": 0.0,
+        "score_rischio_esiti": 0.1333,
+        "tasso_fermati": 0.3333,
+        "tasso_respinti": 0.0,
+        "score_composito": 0.2966
+      },
+      "raccomandazione": "Sotto osservazione — mantenere attenzione elevata nei prossimi 30 giorni"
+    },
+    {
+      "rotta": "BNA-MXP",
+      "paese_partenza": "ND",
+      "zona": "ND",
+      "risk_level": "MEDIO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.2683,
+      "anomaly_score": 0.3138,
+      "br_score": 1,
+      "n_anomalie_baseline": 2,
+      "feature_anomale": [
+        "score_rischio_esiti",
+        "tasso_respinti"
+      ],
+      "business_rules_attive": [
+        "Esiti rischio elevati (respinti/fermati)"
+      ],
+      "indicatori": {
+        "tot_allarmi": 0,
+        "tot_allarmi_log": 0.0,
+        "pct_interpol": 0.0,
+        "pct_sdi": 0.0,
+        "pct_nsis": 0.0,
+        "score_rischio_esiti": 0.6,
+        "tasso_fermati": 0.0,
+        "tasso_respinti": 1.0,
+        "score_composito": 0.21
+      },
+      "raccomandazione": "Sotto osservazione — mantenere attenzione elevata nei prossimi 30 giorni"
+    },
+    {
+      "rotta": "MEX-FLR",
+      "paese_partenza": "ND",
+      "zona": "ND",
+      "risk_level": "MEDIO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.2683,
+      "anomaly_score": 0.3138,
+      "br_score": 1,
+      "n_anomalie_baseline": 2,
+      "feature_anomale": [
+        "score_rischio_esiti",
+        "tasso_respinti"
+      ],
+      "business_rules_attive": [
+        "Esiti rischio elevati (respinti/fermati)"
+      ],
+      "indicatori": {
+        "tot_allarmi": 0,
+        "tot_allarmi_log": 0.0,
+        "pct_interpol": 0.0,
+        "pct_sdi": 0.0,
+        "pct_nsis": 0.0,
+        "score_rischio_esiti": 0.6,
+        "tasso_fermati": 0.0,
+        "tasso_respinti": 1.0,
+        "score_composito": 0.21
+      },
+      "raccomandazione": "Sotto osservazione — mantenere attenzione elevata nei prossimi 30 giorni"
+    },
+    {
+      "rotta": "YWG-FCO",
+      "paese_partenza": "ND",
+      "zona": "ND",
+      "risk_level": "MEDIO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.2683,
+      "anomaly_score": 0.3138,
+      "br_score": 1,
+      "n_anomalie_baseline": 2,
+      "feature_anomale": [
+        "score_rischio_esiti",
+        "tasso_respinti"
+      ],
+      "business_rules_attive": [
+        "Esiti rischio elevati (respinti/fermati)"
+      ],
+      "indicatori": {
+        "tot_allarmi": 0,
+        "tot_allarmi_log": 0.0,
+        "pct_interpol": 0.0,
+        "pct_sdi": 0.0,
+        "pct_nsis": 0.0,
+        "score_rischio_esiti": 0.6,
+        "tasso_fermati": 0.0,
+        "tasso_respinti": 1.0,
+        "score_composito": 0.21
+      },
+      "raccomandazione": "Sotto osservazione — mantenere attenzione elevata nei prossimi 30 giorni"
+    },
+    {
+      "rotta": "CGK-FCO",
+      "paese_partenza": "ND",
+      "zona": "ND",
+      "risk_level": "MEDIO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.2449,
+      "anomaly_score": 0.4082,
+      "br_score": 0,
+      "n_anomalie_baseline": 1,
+      "feature_anomale": [
+        "tasso_allarme_medio"
+      ],
+      "business_rules_attive": [],
+      "indicatori": {
+        "tot_allarmi": 0,
+        "tot_allarmi_log": 0.0,
+        "pct_interpol": 0.0,
+        "pct_sdi": 0.0,
+        "pct_nsis": 0.0,
+        "score_rischio_esiti": 0.0,
+        "tasso_fermati": 0.0,
+        "tasso_respinti": 0.0,
+        "score_composito": 0.0
+      },
+      "raccomandazione": "Sotto osservazione — mantenere attenzione elevata nei prossimi 30 giorni"
+    },
+    {
+      "rotta": "DAR-FCO",
+      "paese_partenza": "ND",
+      "zona": "ND",
+      "risk_level": "MEDIO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.2449,
+      "anomaly_score": 0.4082,
+      "br_score": 0,
+      "n_anomalie_baseline": 1,
+      "feature_anomale": [
+        "tasso_allarme_medio"
+      ],
+      "business_rules_attive": [],
+      "indicatori": {
+        "tot_allarmi": 0,
+        "tot_allarmi_log": 0.0,
+        "pct_interpol": 0.0,
+        "pct_sdi": 0.0,
+        "pct_nsis": 0.0,
+        "score_rischio_esiti": 0.0,
+        "tasso_fermati": 0.0,
+        "tasso_respinti": 0.0,
+        "score_composito": 0.0
+      },
+      "raccomandazione": "Sotto osservazione — mantenere attenzione elevata nei prossimi 30 giorni"
+    },
+    {
+      "rotta": "IKA-VCE",
+      "paese_partenza": "ND",
+      "zona": "ND",
+      "risk_level": "MEDIO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.2343,
+      "anomaly_score": 0.3905,
+      "br_score": 0,
+      "n_anomalie_baseline": 0,
+      "feature_anomale": [],
+      "business_rules_attive": [],
+      "indicatori": {
+        "tot_allarmi": 0,
+        "tot_allarmi_log": 0.0,
+        "pct_interpol": 0.0,
+        "pct_sdi": 0.0,
+        "pct_nsis": 0.0,
+        "score_rischio_esiti": 0.2,
+        "tasso_fermati": 0.125,
+        "tasso_respinti": 0.25,
+        "score_composito": 0.07
+      },
+      "raccomandazione": "Sotto osservazione — mantenere attenzione elevata nei prossimi 30 giorni"
+    },
+    {
+      "rotta": "PEW-MXP",
+      "paese_partenza": "ND",
+      "zona": "ND",
+      "risk_level": "MEDIO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.216,
+      "anomaly_score": 0.36,
+      "br_score": 0,
+      "n_anomalie_baseline": 1,
+      "feature_anomale": [
+        "tasso_allarme_medio"
+      ],
+      "business_rules_attive": [],
+      "indicatori": {
+        "tot_allarmi": 0,
+        "tot_allarmi_log": 0.0,
+        "pct_interpol": 0.0,
+        "pct_sdi": 0.0,
+        "pct_nsis": 0.0,
+        "score_rischio_esiti": 0.2333,
+        "tasso_fermati": 0.3333,
+        "tasso_respinti": 0.1667,
+        "score_composito": 0.0817
+      },
+      "raccomandazione": "Sotto osservazione — mantenere attenzione elevata nei prossimi 30 giorni"
+    },
+    {
+      "rotta": "GIG-LIN",
+      "paese_partenza": "ND",
+      "zona": "ND",
+      "risk_level": "MEDIO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.2058,
+      "anomaly_score": 0.343,
+      "br_score": 0,
+      "n_anomalie_baseline": 2,
+      "feature_anomale": [
+        "tasso_allarme_medio",
+        "tasso_fermati"
+      ],
+      "business_rules_attive": [],
+      "indicatori": {
+        "tot_allarmi": 0,
+        "tot_allarmi_log": 0.0,
+        "pct_interpol": 0.0,
+        "pct_sdi": 0.0,
+        "pct_nsis": 0.0,
+        "score_rischio_esiti": 0.2,
+        "tasso_fermati": 0.5,
+        "tasso_respinti": 0.0,
+        "score_composito": 0.07
+      },
+      "raccomandazione": "Sotto osservazione — mantenere attenzione elevata nei prossimi 30 giorni"
+    },
+    {
+      "rotta": "JFK-FLR",
+      "paese_partenza": "ND",
+      "zona": "ND",
+      "risk_level": "MEDIO",
+      "anomaly_label": "MEDIA",
+      "confidence": 0.2058,
+      "anomaly_score": 0.343,
+      "br_score": 0,
+      "n_anomalie_baseline": 2,
+      "feature_anomale": [
+        "tasso_allarme_medio",
+        "tasso_fermati"
+      ],
+      "business_rules_attive": [],
+      "indicatori": {
+        "tot_allarmi": 0,
+        "tot_allarmi_log": 0.0,
+        "pct_interpol": 0.0,
+        "pct_sdi": 0.0,
+        "pct_nsis": 0.0,
+        "score_rischio_esiti": 0.2,
+        "tasso_fermati": 0.5,
+        "tasso_respinti": 0.0,
+        "score_composito": 0.07
+      },
+      "raccomandazione": "Sotto osservazione — mantenere attenzione elevata nei prossimi 30 giorni"
+    }
+  ]
+}
