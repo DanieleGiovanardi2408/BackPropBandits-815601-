@@ -54,7 +54,9 @@ streamlit run streamlit_app/app.py
 
 ## Team
 
-- ...
+- Daniele Giovanardi
+- Filippo Nannucci
+- Edoardo Riva
 
 ## References
 
