@@ -1,24 +1,87 @@
 {
   "n_routes": 567,
-  "n_alta": 3,
-  "n_media": 24,
-  "n_normale": 540,
-  "consensus_routes": [],
-  "model_weights": {
-    "isolation_forest": 0.4,
-    "lof": 0.35,
-    "z_score": 0.25
+  "n_alta": 17,
+  "n_media": 40,
+  "n_normale": 510,
+  "alta_threshold": 0.3579,
+  "media_threshold": 0.2897,
+  "threshold_method": "data-driven (p97/p90)",
+  "ensemble_weights": {
+    "IF": 0.35,
+    "LOF": 0.3,
+    "Z": 0.15,
+    "AE": 0.2
   },
   "top10_routes": [
-    "GYD-FCO",
-    "ALG-MXP",
-    "KIV-FCO",
-    "RUH-VCE",
-    "HRG-NAP",
-    "CGK-FCO",
-    "DAR-FCO",
-    "EVN-VCE",
-    "RAK-CIA",
-    "IKA-VCE"
+    {
+      "rank": 1,
+      "rotta": "ALG-MXP",
+      "label": "ALTA",
+      "score": 0.5909,
+      "paese": "Algeria"
+    },
+    {
+      "rank": 2,
+      "rotta": "RAK-CIA",
+      "label": "ALTA",
+      "score": 0.5253,
+      "paese": "Marocco"
+    },
+    {
+      "rank": 3,
+      "rotta": "GYD-FCO",
+      "label": "ALTA",
+      "score": 0.4608,
+      "paese": "Azerbaigian"
+    },
+    {
+      "rank": 4,
+      "rotta": "CMN-BLQ",
+      "label": "ALTA",
+      "score": 0.4583,
+      "paese": "Marocco"
+    },
+    {
+      "rank": 5,
+      "rotta": "RAK-TSF",
+      "label": "ALTA",
+      "score": 0.456,
+      "paese": "Marocco"
+    },
+    {
+      "rank": 6,
+      "rotta": "PVG-MXP",
+      "label": "ALTA",
+      "score": 0.4294,
+      "paese": "Cina"
+    },
+    {
+      "rank": 7,
+      "rotta": "CAN-FCO",
+      "label": "ALTA",
+      "score": 0.4255,
+      "paese": "Cina"
+    },
+    {
+      "rank": 8,
+      "rotta": "AMM-FCO",
+      "label": "ALTA",
+      "score": 0.4072,
+      "paese": "Giordania"
+    },
+    {
+      "rank": 9,
+      "rotta": "KIV-FCO",
+      "label": "ALTA",
+      "score": 0.4055,
+      "paese": "Moldavia"
+    },
+    {
+      "rank": 10,
+      "rotta": "RUH-VCE",
+      "label": "ALTA",
+      "score": 0.3985,
+      "paese": "Arabia Saudita"
+    }
   ]
 }

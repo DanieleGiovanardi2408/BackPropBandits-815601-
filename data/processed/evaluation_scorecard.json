@@ -1,62 +1,116 @@
 {
-  "pipeline": "classical_ml",
+  "pipeline": "classical_ml_v2",
+  "version_improvements": [
+    "autoencoder_4th_model",
+    "data_driven_thresholds",
+    "nd_country_fix",
+    "shap_explainability"
+  ],
   "n_routes_analyzed": 567,
-  "n_anomalies_ml": 27,
-  "n_routes_alert_final": 27,
-  "alert_rate_pct": 4.76,
-  "silhouette_score": 0.0153,
-  "davies_bouldin_index": 10.9819,
-  "calinski_harabasz": 0.8,
+  "n_anomalies_ml": 57,
+  "n_routes_alert_final": 57,
+  "alert_rate_pct": 10.05,
+  "silhouette_score": -0.0114,
+  "davies_bouldin_index": 10.944,
+  "calinski_harabasz": 1.5,
   "bootstrap_stable_routes": 46,
-  "ml_bootstrap_consistency": 0.6667,
-  "top1_route": "JED-VCE",
-  "top1_confidence": 0.5242,
-  "top_feature": "tasso_rilevanza",
-  "top_feature_importance": 0.3895,
+  "ml_bootstrap_consistency": 0.614,
+  "top_shap_feature": "tot_allarmi_log",
+  "top_shap_importance": 0.0538,
+  "top_permutation_feature": "tasso_rilevanza",
+  "top_permutation_importance": 0.381,
+  "nd_routes_fixed": 200,
+  "shap_method": "Permutation Attribution (fallback)",
   "feature_importance_ranking": [
     {
       "feature": "tasso_rilevanza",
-      "importance": 0.38947368421052636
+      "importance": 0.380952380952381
     },
     {
       "feature": "tasso_inv_medio",
-      "importance": 0.34736842105263166
+      "importance": 0.350595238095238
     },
     {
       "feature": "tasso_respinti",
-      "importance": 0.31052631578947376
+      "importance": 0.3095238095238095
     },
     {
       "feature": "score_rischio_esiti",
-      "importance": 0.2941520467836257
+      "importance": 0.30416666666666664
     },
     {
       "feature": "pct_sdi",
-      "importance": 0.26842105263157895
+      "importance": 0.2797619047619048
     },
     {
       "feature": "tasso_chiusura",
-      "importance": 0.26783625730994154
+      "importance": 0.27976190476190477
     },
     {
       "feature": "tasso_allarme_medio",
-      "importance": 0.2526315789473685
+      "importance": 0.2589285714285714
     },
     {
       "feature": "tasso_fermati",
-      "importance": 0.24502923976608187
+      "importance": 0.2464285714285714
     },
     {
       "feature": "pct_nsis",
-      "importance": 0.1988304093567251
+      "importance": 0.20000000000000004
     },
     {
       "feature": "pct_interpol",
-      "importance": 0.18947368421052635
+      "importance": 0.19464285714285715
     },
     {
       "feature": "tot_allarmi_log",
-      "importance": 0.13567251461988306
+      "importance": 0.1392857142857143
+    }
+  ],
+  "shap_importance_ranking": [
+    {
+      "feature": "tot_allarmi_log",
+      "shap_mean": 0.053760382314152734
+    },
+    {
+      "feature": "score_rischio_esiti",
+      "shap_mean": 0.04755401894828194
+    },
+    {
+      "feature": "pct_interpol",
+      "shap_mean": 0.04735711511236027
+    },
+    {
+      "feature": "tasso_allarme_medio",
+      "shap_mean": 0.04362966110589099
+    },
+    {
+      "feature": "pct_sdi",
+      "shap_mean": 0.036402452418485595
+    },
+    {
+      "feature": "tasso_inv_medio",
+      "shap_mean": 0.025702539463182336
+    },
+    {
+      "feature": "tasso_fermati",
+      "shap_mean": 0.019892853249162085
+    },
+    {
+      "feature": "tasso_respinti",
+      "shap_mean": 0.013823639800558634
+    },
+    {
+      "feature": "pct_nsis",
+      "shap_mean": 0.012491662852473032
+    },
+    {
+      "feature": "tasso_chiusura",
+      "shap_mean": 0.005046496591884846
+    },
+    {
+      "feature": "tasso_rilevanza",
+      "shap_mean": 0.0015206876733523445
     }
   ]
 }
