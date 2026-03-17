@@ -1,0 +1,62 @@
+{
+  "pipeline": "classical_ml",
+  "n_routes_analyzed": 567,
+  "n_anomalies_ml": 27,
+  "n_routes_alert_final": 27,
+  "alert_rate_pct": 4.76,
+  "silhouette_score": 0.0153,
+  "davies_bouldin_index": 10.9819,
+  "calinski_harabasz": 0.8,
+  "bootstrap_stable_routes": 46,
+  "ml_bootstrap_consistency": 0.6667,
+  "top1_route": "JED-VCE",
+  "top1_confidence": 0.5242,
+  "top_feature": "tasso_rilevanza",
+  "top_feature_importance": 0.3895,
+  "feature_importance_ranking": [
+    {
+      "feature": "tasso_rilevanza",
+      "importance": 0.38947368421052636
+    },
+    {
+      "feature": "tasso_inv_medio",
+      "importance": 0.34736842105263166
+    },
+    {
+      "feature": "tasso_respinti",
+      "importance": 0.31052631578947376
+    },
+    {
+      "feature": "score_rischio_esiti",
+      "importance": 0.2941520467836257
+    },
+    {
+      "feature": "pct_sdi",
+      "importance": 0.26842105263157895
+    },
+    {
+      "feature": "tasso_chiusura",
+      "importance": 0.26783625730994154
+    },
+    {
+      "feature": "tasso_allarme_medio",
+      "importance": 0.2526315789473685
+    },
+    {
+      "feature": "tasso_fermati",
+      "importance": 0.24502923976608187
+    },
+    {
+      "feature": "pct_nsis",
+      "importance": 0.1988304093567251
+    },
+    {
+      "feature": "pct_interpol",
+      "importance": 0.18947368421052635
+    },
+    {
+      "feature": "tot_allarmi_log",
+      "importance": 0.13567251461988306
+    }
+  ]
+}
