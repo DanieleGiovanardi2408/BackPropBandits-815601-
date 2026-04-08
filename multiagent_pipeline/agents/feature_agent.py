@@ -20,6 +20,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(_P(__file__).resolve().parents[2]))
     __package__ = "multiagent_pipeline.agents"
 
+import json
 import logging
 from pathlib import Path
 
@@ -34,6 +35,36 @@ logger = logging.getLogger(__name__)
 _PROJECT_ROOT  = Path(__file__).resolve().parents[2]
 ALLARMI_PATH    = _PROJECT_ROOT / "data" / "processed" / "allarmi_clean.csv"
 VIAGGIATORI_PATH = _PROJECT_ROOT / "data" / "processed" / "viaggiatori_clean.csv"
+
+# Artefatti scritti dal DataAgent (handoff cross-process).
+DATA_AGENT_OUTPUT_JSON = _PROJECT_ROOT / "data" / "processed" / "data_agent_output.json"
+
+
+def _load_from_data_agent_artifact() -> tuple[pd.DataFrame, pd.DataFrame, dict] | None:
+    """Tenta di caricare allarmi/viaggiatori filtrati e perimetro dall'output del DataAgent.
+
+    Restituisce (df_allarmi, df_viaggiatori, perimeter) oppure None se l'artefatto
+    non esiste o e' incompleto.
+    """
+    if not DATA_AGENT_OUTPUT_JSON.exists():
+        return None
+    try:
+        manifest = json.loads(DATA_AGENT_OUTPUT_JSON.read_text())
+        outputs  = manifest.get("outputs", {})
+        a_rel    = outputs.get("allarmi")
+        v_rel    = outputs.get("viaggiatori")
+        if not (a_rel and v_rel):
+            return None
+        a_path = _PROJECT_ROOT / a_rel
+        v_path = _PROJECT_ROOT / v_rel
+        if not (a_path.exists() and v_path.exists()):
+            return None
+        df_a = pd.read_csv(a_path)
+        df_v = pd.read_csv(v_path)
+        return df_a, df_v, manifest.get("perimeter", {})
+    except Exception as e:
+        logger.warning("Impossibile leggere artefatto DataAgent: %s", e)
+        return None
 
 
 def run_feature_agent(
@@ -61,20 +92,32 @@ def run_feature_agent(
     logger.info("FeatureAgent start | perimeter=%s", perimeter)
 
     try:
-        # Primo canale: usa i dataframe prodotti dal DataAgent nello stato condiviso.
+        # Priorità 1: dataframe gia' nello stato (catena in-process con DataAgent).
         df_a = state.get("df_allarmi")
         df_v = state.get("df_viaggiatori")
 
-        # Fallback compatibilità: se mancanti, carica da disco e filtra localmente.
-        if not isinstance(df_a, pd.DataFrame) or not isinstance(df_v, pd.DataFrame):
-            df_a = pd.read_csv(allarmi_path)
-            df_v = pd.read_csv(viaggiatori_path)
-            logger.info("Clean caricati da disco: allarmi=%s viaggiatori=%s", df_a.shape, df_v.shape)
-            df_a = filter_by_perimeter(df_a, perimeter)
-            df_v = filter_by_perimeter(df_v, perimeter)
-            logger.info("Dopo filtro locale: allarmi=%s viaggiatori=%s", df_a.shape, df_v.shape)
+        if isinstance(df_a, pd.DataFrame) and isinstance(df_v, pd.DataFrame):
+            logger.info("Input ricevuti da DataAgent (state): allarmi=%s viaggiatori=%s", df_a.shape, df_v.shape)
         else:
-            logger.info("Input ricevuti da DataAgent: allarmi=%s viaggiatori=%s", df_a.shape, df_v.shape)
+            # Priorità 2: artefatto su disco scritto dal DataAgent (handoff cross-process).
+            artifact = _load_from_data_agent_artifact()
+            if artifact is not None:
+                df_a, df_v, da_perimeter = artifact
+                logger.info(
+                    "Input letti dall'artefatto DataAgent: allarmi=%s viaggiatori=%s | perimetro=%s",
+                    df_a.shape, df_v.shape, da_perimeter,
+                )
+                # Allinea il perimetro a quello effettivamente applicato dal DataAgent
+                if not perimeter:
+                    perimeter = da_perimeter
+            else:
+                # Priorità 3: fallback completo — clean originali + filtro locale.
+                df_a = pd.read_csv(allarmi_path)
+                df_v = pd.read_csv(viaggiatori_path)
+                logger.info("Clean caricati da disco (fallback): allarmi=%s viaggiatori=%s", df_a.shape, df_v.shape)
+                df_a = filter_by_perimeter(df_a, perimeter)
+                df_v = filter_by_perimeter(df_v, perimeter)
+                logger.info("Dopo filtro locale: allarmi=%s viaggiatori=%s", df_a.shape, df_v.shape)
 
         if df_a.empty and df_v.empty:
             raise ValueError(f"Nessun dato trovato con i filtri: {perimeter}")

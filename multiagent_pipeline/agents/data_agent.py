@@ -47,9 +47,11 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PATHS = {k: str(_PROJECT_ROOT / v) if not Path(v).is_absolute() else v
          for k, v in PATHS.items()}
 
-# Output del DataAgent (artefatti per audit / handoff al prossimo agente)
-DATA_AGENT_OUTPUT_JSON = _PROJECT_ROOT / "data" / "processed" / "data_agent_output.json"
-DATA_AGENT_OUTPUT_CSV  = _PROJECT_ROOT / "data" / "processed" / "data_agent_filtered.csv"
+# Output del DataAgent (artefatti per audit + handoff cross-process al FeatureAgent)
+DATA_AGENT_OUTPUT_JSON       = _PROJECT_ROOT / "data" / "processed" / "data_agent_output.json"
+DATA_AGENT_OUTPUT_CSV        = _PROJECT_ROOT / "data" / "processed" / "data_agent_filtered.csv"
+DATA_AGENT_ALLARMI_CSV       = _PROJECT_ROOT / "data" / "processed" / "data_agent_allarmi.csv"
+DATA_AGENT_VIAGGIATORI_CSV   = _PROJECT_ROOT / "data" / "processed" / "data_agent_viaggiatori.csv"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -263,17 +265,25 @@ def data_agent_node(state: AgentState, save_artifacts: bool = False) -> AgentSta
         stats["n_righe_allarmi"] = int(len(df_allarmi))
         stats["n_righe_viaggiatori"] = int(len(df_viaggiatori))
 
-        # 7. Salvataggio opzionale artefatti debug (non usati per l'handoff tra agenti)
+        # 7. Salvataggio opzionale: 1 manifest JSON + 3 CSV filtrati
+        # (merged/allarmi/viaggiatori). Quando attivo abilita l'handoff
+        # cross-process al FeatureAgent, che legge l'artefatto se presente.
         if save_artifacts:
             DATA_AGENT_OUTPUT_JSON.parent.mkdir(parents=True, exist_ok=True)
+            df_raw.to_csv(DATA_AGENT_OUTPUT_CSV, index=False)
+            df_allarmi.to_csv(DATA_AGENT_ALLARMI_CSV, index=False)
+            df_viaggiatori.to_csv(DATA_AGENT_VIAGGIATORI_CSV, index=False)
             artifact = {
                 "perimeter": perimeter.model_dump(),
                 "data_meta": stats,
-                "output_csv": str(DATA_AGENT_OUTPUT_CSV.relative_to(_PROJECT_ROOT)),
+                "outputs": {
+                    "merged":      str(DATA_AGENT_OUTPUT_CSV.relative_to(_PROJECT_ROOT)),
+                    "allarmi":     str(DATA_AGENT_ALLARMI_CSV.relative_to(_PROJECT_ROOT)),
+                    "viaggiatori": str(DATA_AGENT_VIAGGIATORI_CSV.relative_to(_PROJECT_ROOT)),
+                },
             }
             DATA_AGENT_OUTPUT_JSON.write_text(json.dumps(artifact, indent=2, ensure_ascii=False))
-            df_raw.to_csv(DATA_AGENT_OUTPUT_CSV, index=False)
-            logger.info("[save] %s + %s", DATA_AGENT_OUTPUT_JSON.name, DATA_AGENT_OUTPUT_CSV.name)
+            logger.info("[save] %s + 3 csv (merged/allarmi/viaggiatori)", DATA_AGENT_OUTPUT_JSON.name)
 
         logger.info(
             "DataAgent ✓ Completato — %d righe, %d rotte uniche",
