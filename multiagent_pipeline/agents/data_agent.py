@@ -17,7 +17,8 @@ Architettura:
     load_dataset → filter_by_perimeter → get_dataset_stats
 
 Input  (da AgentState): state["perimeter"]
-Output (su AgentState): state["df_raw"], state["data_meta"]
+Output (su AgentState): state["df_raw"], state["df_allarmi"],
+                        state["df_viaggiatori"], state["data_meta"]
 """
 
 # ── Bootstrap per esecuzione diretta (python data_agent.py) ──────────────────
@@ -186,8 +187,11 @@ def data_agent_node(state: AgentState) -> AgentState:
     """
     Nodo LangGraph per il DataAgent.
 
-    Legge state["perimeter"], esegue i 3 tool in sequenza e scrive
-    state["df_raw"] e state["data_meta"].
+    Legge state["perimeter"], esegue i tool in sequenza e scrive:
+      - state["df_raw"]          (dataset_merged filtrato)
+      - state["df_allarmi"]      (allarmi_clean filtrato)
+      - state["df_viaggiatori"]  (viaggiatori_clean filtrato)
+      - state["data_meta"]       (statistiche principali)
 
     In caso di errore non lancia eccezioni: popola data_meta["error"]
     e lascia df_raw = None, così il grafo può gestire il fallimento.
@@ -199,12 +203,30 @@ def data_agent_node(state: AgentState) -> AgentState:
         raw_perimeter = state.get("perimeter", {})
         perimeter = Perimeter(**raw_perimeter)
 
-        # 2. Carica il dataset
-        data_json = load_dataset.invoke({"path": PATHS["dataset_merged"]})
+        # 2. Carica i dataset (merged + clean separati)
+        merged_json = load_dataset.invoke({"path": PATHS["dataset_merged"]})
+        allarmi_json = load_dataset.invoke({"path": PATHS["allarmi_clean"]})
+        viaggiatori_json = load_dataset.invoke({"path": PATHS["viaggiatori_clean"]})
 
-        # 3. Applica i filtri
-        data_json = filter_by_perimeter.invoke({
-            "data_json"         : data_json,
+        # 3. Applica i filtri su tutti i dataset
+        merged_json = filter_by_perimeter.invoke({
+            "data_json"         : merged_json,
+            "anno"              : perimeter.anno,
+            "aeroporto_arrivo"  : perimeter.aeroporto_arrivo,
+            "aeroporto_partenza": perimeter.aeroporto_partenza,
+            "paese_partenza"    : perimeter.paese_partenza,
+            "zona"              : perimeter.zona,
+        })
+        allarmi_json = filter_by_perimeter.invoke({
+            "data_json"         : allarmi_json,
+            "anno"              : perimeter.anno,
+            "aeroporto_arrivo"  : perimeter.aeroporto_arrivo,
+            "aeroporto_partenza": perimeter.aeroporto_partenza,
+            "paese_partenza"    : perimeter.paese_partenza,
+            "zona"              : perimeter.zona,
+        })
+        viaggiatori_json = filter_by_perimeter.invoke({
+            "data_json"         : viaggiatori_json,
             "anno"              : perimeter.anno,
             "aeroporto_arrivo"  : perimeter.aeroporto_arrivo,
             "aeroporto_partenza": perimeter.aeroporto_partenza,
@@ -213,15 +235,24 @@ def data_agent_node(state: AgentState) -> AgentState:
         })
 
         # 4. Calcola statistiche
-        stats_json = get_dataset_stats.invoke({"data_json": data_json})
+        stats_json = get_dataset_stats.invoke({"data_json": merged_json})
 
         # 5. Controlla errori propagati
         stats = json.loads(stats_json)
         if "error" in stats:
             raise ValueError(stats["error"])
 
+        for payload in [allarmi_json, viaggiatori_json]:
+            parsed = json.loads(payload)
+            if isinstance(parsed, dict) and "error" in parsed:
+                raise ValueError(parsed["error"])
+
         # 6. Deserializza DataFrame
-        df_raw = pd.DataFrame(json.loads(data_json))
+        df_raw = pd.DataFrame(json.loads(merged_json))
+        df_allarmi = pd.DataFrame(json.loads(allarmi_json))
+        df_viaggiatori = pd.DataFrame(json.loads(viaggiatori_json))
+        stats["n_righe_allarmi"] = int(len(df_allarmi))
+        stats["n_righe_viaggiatori"] = int(len(df_viaggiatori))
 
         # 7. Salva artefatti su disco (audit + handoff)
         DATA_AGENT_OUTPUT_JSON.parent.mkdir(parents=True, exist_ok=True)
@@ -242,6 +273,8 @@ def data_agent_node(state: AgentState) -> AgentState:
         return {
             **state,
             "df_raw"   : df_raw,
+            "df_allarmi": df_allarmi,
+            "df_viaggiatori": df_viaggiatori,
             "data_meta": stats,
         }
 
@@ -251,6 +284,8 @@ def data_agent_node(state: AgentState) -> AgentState:
         return {
             **state,
             "df_raw"   : None,
+            "df_allarmi": None,
+            "df_viaggiatori": None,
             "data_meta": {"error": str(e)},
         }
 
@@ -363,6 +398,8 @@ if __name__ == "__main__":
     stato_iniziale: AgentState = {
         "perimeter"    : perimeter,
         "df_raw"       : None,
+        "df_allarmi"   : None,
+        "df_viaggiatori": None,
         "data_meta"    : None,
         "df_features"  : None,
         "feature_meta" : None,
@@ -387,4 +424,6 @@ if __name__ == "__main__":
         print(f"  Top 5 paesi:       {meta['paesi_partenza_top5']}")
         print(f"  Righe con allarmi: {meta['n_con_allarmi']}")
         print(f"  df_raw shape:      {stato_finale['df_raw'].shape}")
+        print(f"  df_allarmi shape:  {stato_finale['df_allarmi'].shape}")
+        print(f"  df_viag shape:     {stato_finale['df_viaggiatori'].shape}")
     print("=" * 55)

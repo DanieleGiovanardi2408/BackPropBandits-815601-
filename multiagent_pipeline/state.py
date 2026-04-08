@@ -42,6 +42,8 @@ class AgentState(TypedDict):
 
     # ── Output DataAgent ──────────────────────────────────────────────────────
     df_raw: Optional[Any]                 # pd.DataFrame — dataset_merged filtrato
+    df_allarmi: Optional[Any]             # pd.DataFrame — allarmi_clean filtrato
+    df_viaggiatori: Optional[Any]         # pd.DataFrame — viaggiatori_clean filtrato
     data_meta: Optional[dict]             # statistiche dataset: n_righe, n_rotte, colonne
 
     # ── Output FeatureAgent ───────────────────────────────────────────────────
@@ -166,6 +168,8 @@ DATASET_MERGED_COLS = [
 # Percorsi file (relativi alla root del progetto)
 PATHS = {
     "dataset_merged":   "data/processed/dataset_merged.csv",
+    "allarmi_clean":    "data/processed/allarmi_clean.csv",
+    "viaggiatori_clean":"data/processed/viaggiatori_clean.csv",
     "features":         "data/processed/features_classical.csv",
     "baseline_stats":   "data/processed/baseline_stats.json",
     "feature_cols":     "data/processed/feature_cols.json",

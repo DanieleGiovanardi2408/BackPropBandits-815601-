@@ -50,7 +50,11 @@ def filter_by_perimeter(df: pd.DataFrame, perimeter: Optional[dict]) -> pd.DataF
             raise KeyError(f"Chiave perimetro sconosciuta: {key}")
         if col not in out.columns:
             raise KeyError(f"Colonna {col} non presente nel dataset")
-        out = out[out[col] == value]
+        # Confronto case-insensitive sulle colonne stringa per coerenza con DataAgent.
+        if pd.api.types.is_object_dtype(out[col]) or pd.api.types.is_string_dtype(out[col]):
+            out = out[out[col].astype(str).str.upper() == str(value).upper()]
+        else:
+            out = out[out[col] == value]
     return out.copy()
 
 

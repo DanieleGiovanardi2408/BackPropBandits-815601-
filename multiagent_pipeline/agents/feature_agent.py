@@ -40,6 +40,8 @@ def run_feature_agent(
     state: AgentState,
     allarmi_path: Path | str = ALLARMI_PATH,
     viaggiatori_path: Path | str = VIAGGIATORI_PATH,
+    save_output: bool = False,
+    output_path: Path | str | None = None,
 ) -> AgentState:
     """Esegue il FeatureAgent: carica clean -> filtra perimetro -> aggrega feature.
 
@@ -47,38 +49,76 @@ def run_feature_agent(
         state: stato corrente. Usa `state["perimeter"]` (opzionale).
         allarmi_path / viaggiatori_path: override per test.
 
+    Args:
+        save_output: se True salva il DataFrame finale su disco.
+        output_path: path CSV di output. Se None usa PATHS["features"].
+
     Returns:
         Nuovo AgentState con df_features e feature_meta popolati.
     """
+    logger.info("FeatureAgent ── Avvio")
     perimeter = state.get("perimeter") or {}
     logger.info("FeatureAgent start | perimeter=%s", perimeter)
 
-    df_a = pd.read_csv(allarmi_path)
-    df_v = pd.read_csv(viaggiatori_path)
-    logger.info("Clean caricati: allarmi=%s viaggiatori=%s", df_a.shape, df_v.shape)
+    try:
+        # Primo canale: usa i dataframe prodotti dal DataAgent nello stato condiviso.
+        df_a = state.get("df_allarmi")
+        df_v = state.get("df_viaggiatori")
 
-    df_a = filter_by_perimeter(df_a, perimeter)
-    df_v = filter_by_perimeter(df_v, perimeter)
-    logger.info("Dopo filtro: allarmi=%s viaggiatori=%s", df_a.shape, df_v.shape)
+        # Fallback compatibilità: se mancanti, carica da disco e filtra localmente.
+        if not isinstance(df_a, pd.DataFrame) or not isinstance(df_v, pd.DataFrame):
+            df_a = pd.read_csv(allarmi_path)
+            df_v = pd.read_csv(viaggiatori_path)
+            logger.info("Clean caricati da disco: allarmi=%s viaggiatori=%s", df_a.shape, df_v.shape)
+            df_a = filter_by_perimeter(df_a, perimeter)
+            df_v = filter_by_perimeter(df_v, perimeter)
+            logger.info("Dopo filtro locale: allarmi=%s viaggiatori=%s", df_a.shape, df_v.shape)
+        else:
+            logger.info("Input ricevuti da DataAgent: allarmi=%s viaggiatori=%s", df_a.shape, df_v.shape)
 
-    builder = FeatureBuilder()
-    df_features = builder.build(df_a, df_v)
-    quality     = builder.quality_report(df_features)
-    logger.info("Features: %d rotte x %d colonne", df_features.shape[0], df_features.shape[1])
-    logger.info("Quality: %s", quality)
+        if df_a.empty and df_v.empty:
+            raise ValueError(f"Nessun dato trovato con i filtri: {perimeter}")
 
-    feature_meta = {
-        "n_rotte"      : int(df_features.shape[0]),
-        "n_features"   : int(df_features.shape[1]),
-        "feature_cols" : df_features.select_dtypes(include="number").columns.tolist(),
-        "quality"      : quality,
-    }
+        builder = FeatureBuilder()
+        df_features = builder.build(df_a, df_v)
 
-    return {
-        **state,
-        "df_features": df_features,
-        "feature_meta": feature_meta,
-    }
+        if df_features.empty:
+            raise ValueError(f"Nessuna feature generata con i filtri: {perimeter}")
+
+        quality = builder.quality_report(df_features)
+        logger.info("Features: %d rotte x %d colonne", df_features.shape[0], df_features.shape[1])
+        logger.info("Quality: %s", quality)
+
+        saved_to = None
+        if save_output:
+            default_out = _PROJECT_ROOT / PATHS["features"]
+            out_path = Path(output_path) if output_path is not None else default_out
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            df_features.to_csv(out_path, index=False)
+            saved_to = str(out_path)
+            logger.info("FeatureAgent output salvato in: %s", saved_to)
+
+        feature_meta = {
+            "n_rotte": int(df_features.shape[0]),
+            "n_features": int(df_features.shape[1]),
+            "feature_cols": df_features.select_dtypes(include="number").columns.tolist(),
+            "quality": quality,
+            "saved_to": saved_to,
+        }
+
+        logger.info("FeatureAgent ✓ Completato")
+        return {
+            **state,
+            "df_features": df_features,
+            "feature_meta": feature_meta,
+        }
+    except Exception as e:
+        logger.error("FeatureAgent ✗ Errore: %s", e)
+        return {
+            **state,
+            "df_features": None,
+            "feature_meta": {"error": str(e)},
+        }
 
 
 if __name__ == "__main__":

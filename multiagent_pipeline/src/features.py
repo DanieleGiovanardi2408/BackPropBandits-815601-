@@ -208,9 +208,11 @@ class AllarmiAggregator:
         agg[num_cols] = agg[num_cols].clip(lower=0)
 
         # 5. Feature derivate
+        allarmi_chiusi = agg.get("allarmi_chiusi", pd.Series(0, index=agg.index))
+        allarmi_non_chiusi = agg.get("allarmi_non_chiusi", pd.Series(0, index=agg.index))
         agg["tasso_chiusura"] = safe_div(
-            agg["allarmi_chiusi"],
-            agg["allarmi_chiusi"] + agg.get("allarmi_non_chiusi", pd.Series(0, index=agg.index))
+            allarmi_chiusi,
+            allarmi_chiusi + allarmi_non_chiusi
         ).clip(0, 1)
 
         agg["tasso_rilevanza"] = safe_div(
