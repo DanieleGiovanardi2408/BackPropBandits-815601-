@@ -30,6 +30,7 @@ if __package__ in (None, ""):
     __package__ = "multiagent_pipeline.agents"
 
 import json
+import logging
 import pandas as pd
 from pathlib import Path
 from typing import Optional
@@ -37,6 +38,8 @@ from typing import Optional
 from langchain_core.tools import tool
 
 from multiagent_pipeline.state import AgentState, Perimeter, PATHS
+
+logger = logging.getLogger(__name__)
 
 # Risolvi i path del dataset rispetto alla root del progetto, cosi' funziona
 # da qualsiasi cwd (terminale, "Run File" di VSCode, debugger, ecc.)
@@ -66,7 +69,7 @@ def load_dataset(path: str) -> str:
             return json.dumps({"error": f"File non trovato: {path}"})
 
         df = pd.read_csv(p)
-        print(f"  [load_dataset] Caricato '{p.name}': {df.shape[0]} righe × {df.shape[1]} colonne")
+        logger.info("[load_dataset] Caricato '%s': %d righe × %d colonne", p.name, df.shape[0], df.shape[1])
         return df.to_json(orient="records", date_format="iso")
 
     except Exception as e:
@@ -126,7 +129,7 @@ def filter_by_perimeter(
             })
 
         label = ', '.join(filtri_applicati) if filtri_applicati else "nessuno"
-        print(f"  [filter_by_perimeter] Filtri applicati: {label} → {len(df)} righe rimaste")
+        logger.info("[filter_by_perimeter] Filtri applicati: %s -> %d righe rimaste", label, len(df))
         return df.to_json(orient="records", date_format="iso")
 
     except Exception as e:
@@ -170,9 +173,12 @@ def get_dataset_stats(data_json: str) -> str:
             "n_con_allarmi"      : int((tot > 0).sum()),
         }
 
-        print(f"  [get_dataset_stats] {stats['n_righe']} righe, "
-              f"{stats['n_rotte_uniche']} rotte, "
-              f"{stats['n_con_allarmi']} con allarmi")
+        logger.info(
+            "[get_dataset_stats] %d righe, %d rotte, %d con allarmi",
+            stats["n_righe"],
+            stats["n_rotte_uniche"],
+            stats["n_con_allarmi"],
+        )
         return json.dumps(stats)
 
     except Exception as e:
@@ -196,7 +202,7 @@ def data_agent_node(state: AgentState) -> AgentState:
     In caso di errore non lancia eccezioni: popola data_meta["error"]
     e lascia df_raw = None, così il grafo può gestire il fallimento.
     """
-    print("\n[DataAgent] ── Avvio ─────────────────────────────────────")
+    logger.info("DataAgent -- Avvio")
 
     try:
         # 1. Leggi e valida il perimetro
@@ -265,10 +271,11 @@ def data_agent_node(state: AgentState) -> AgentState:
         df_raw.to_csv(DATA_AGENT_OUTPUT_CSV, index=False)
         print(f"  [save] {DATA_AGENT_OUTPUT_JSON.name} + {DATA_AGENT_OUTPUT_CSV.name}")
 
-        print(f"[DataAgent] ✓ Completato — "
-              f"{stats['n_righe']} righe, "
-              f"{stats['n_rotte_uniche']} rotte uniche")
-        print("[DataAgent] ──────────────────────────────────────────────\n")
+        logger.info(
+            "DataAgent ✓ Completato — %d righe, %d rotte uniche",
+            stats["n_righe"],
+            stats["n_rotte_uniche"],
+        )
 
         return {
             **state,
@@ -279,8 +286,7 @@ def data_agent_node(state: AgentState) -> AgentState:
         }
 
     except Exception as e:
-        print(f"[DataAgent] ✗ Errore: {e}")
-        print("[DataAgent] ──────────────────────────────────────────────\n")
+        logger.error("DataAgent ✗ Errore: %s", e)
         return {
             **state,
             "df_raw"   : None,
@@ -388,6 +394,7 @@ def _interactive_perimeter() -> dict:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
     print("=" * 55)
     print("  DataAgent — modalità interattiva")
     print("=" * 55)
