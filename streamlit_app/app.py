@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 import time
 from pathlib import Path
@@ -16,6 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from multiagent_pipeline.main import run_pipeline
+from multiagent_pipeline.config import get_anthropic_api_key
 
 
 st.set_page_config(
@@ -169,14 +169,15 @@ def main() -> None:
         use_zona = st.checkbox("Applica filtro zona", value=False)
 
         st.divider()
+        has_api_key = bool(get_anthropic_api_key())
         run_report = st.checkbox(
             "Attiva Report LLM (Anthropic)",
-            value=False,
+            value=has_api_key,
             help="Richiede variabile ambiente ANTHROPIC_API_KEY.",
         )
         dry_run = st.checkbox(
             "Dry run report (no chiamate LLM)",
-            value=True,
+            value=not has_api_key,
             help="Genera report senza consumare crediti API.",
         )
         save_outputs = st.checkbox("Salva output su disco", value=True)
@@ -205,7 +206,7 @@ def main() -> None:
             aeroporto_arrivo="" if apt_arr == "(tutti)" else apt_arr,
             zona=int(zona) if use_zona else None,
         )
-        if run_report and not os.getenv("ANTHROPIC_API_KEY"):
+        if run_report and not get_anthropic_api_key():
             st.warning("`ANTHROPIC_API_KEY` non impostata: disattivo automaticamente il report LLM.")
             run_report = False
 
@@ -288,6 +289,8 @@ def main() -> None:
                 st.info("Nessun dataframe anomalie disponibile.")
 
         with tab2:
+            raw_report = state.get("report") or {}
+            report_error = raw_report.get("error") if isinstance(raw_report, dict) else None
             report_obj = _safe_read_report(state.get("report_path"), state.get("report"))
             if report_obj:
                 st.markdown("### Sommario")
@@ -306,7 +309,17 @@ def main() -> None:
                     use_container_width=True,
                 )
             else:
-                st.info("Report non disponibile (esegui con `run_report=True`).")
+                stages = (summary or {}).get("stages", {})
+                report_stage = stages.get("report")
+                if report_error:
+                    st.error(f"ReportAgent error: {report_error}")
+                elif report_stage is None:
+                    st.info(
+                        "Report non eseguito in questa run. Spunta 'Attiva Report LLM' "
+                        "e premi di nuovo 'Esegui pipeline'."
+                    )
+                else:
+                    st.info("Report non disponibile per questa esecuzione.")
 
         with tab3:
             st.markdown("### Esito stage")

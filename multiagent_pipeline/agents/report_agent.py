@@ -111,9 +111,14 @@ def run_report_agent(
         n_tot = int(len(df))
         llm = None
         model_name = None
+        llm_warning = None
         if use_llm and not dry_run:
-            model_name = get_anthropic_model()
-            llm = ChatAnthropic(model=model_name, temperature=0)
+            try:
+                model_name = get_anthropic_model()
+                llm = ChatAnthropic(model=model_name, temperature=0)
+            except Exception as e:
+                llm_warning = f"LLM init fallita ({e}); uso fallback deterministico."
+                logger.warning("ReportAgent -- %s", llm_warning)
 
         # Rotte da spiegare: tutte le ALTA/MEDIA, ordinate per score decrescente.
         explain_df = (
@@ -133,7 +138,15 @@ def run_report_agent(
                     "Verifica score e trend nel frontend."
                 )
             else:
-                explanation = generate_explanation(context, llm)
+                try:
+                    explanation = generate_explanation(context, llm)
+                except Exception as e:
+                    llm_warning = f"Chiamata LLM fallita ({e}); fallback locale attivato."
+                    logger.warning("ReportAgent -- %s", llm_warning)
+                    explanation = (
+                        "Spiegazione LLM non disponibile per errore di connessione/API. "
+                        "Analizzare la rotta tramite ensemble_score, baseline_score e risk_label."
+                    )
             findings.append({**row, "explanation": explanation})
 
         report = build_final_report(
@@ -142,6 +155,8 @@ def run_report_agent(
             anomaly_meta=a_meta,
             n_tot=n_tot,
         )
+        if llm_warning:
+            report["warning"] = llm_warning
 
         report_path = None
         if save_output:
