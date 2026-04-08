@@ -148,6 +148,36 @@ def clean_data_partenza(series: pd.Series) -> pd.Series:
     return pd.to_datetime(series, errors="coerce")
 
 
+def align_temporal_columns(
+    df: pd.DataFrame,
+    *,
+    has_day: bool = False,
+    context_label: str = "dataset",
+) -> pd.DataFrame:
+    """
+    Riallinea ANNO/MESE(/GIORNO)_PARTENZA a DATA_PARTENZA quando la data e' valida.
+    DATA_PARTENZA viene trattata come fonte autorevole per evitare inconsistenze.
+    """
+    valid_date_mask = df["DATA_PARTENZA"].notna()
+    if valid_date_mask.sum() == 0:
+        print(f"  Nessuna DATA_PARTENZA valida da riallineare per {context_label}")
+        return df
+
+    mismatch_mask = valid_date_mask & (df["ANNO_PARTENZA"] != df["DATA_PARTENZA"].dt.year)
+    corrected_years = int(mismatch_mask.sum())
+    df.loc[valid_date_mask, "ANNO_PARTENZA"] = df.loc[valid_date_mask, "DATA_PARTENZA"].dt.year
+
+    if "MESE_PARTENZA" in df.columns:
+        df.loc[valid_date_mask, "MESE_PARTENZA"] = df.loc[valid_date_mask, "DATA_PARTENZA"].dt.month
+
+    if has_day and "GIORNO_PARTENZA" in df.columns:
+        df.loc[valid_date_mask, "GIORNO_PARTENZA"] = df.loc[valid_date_mask, "DATA_PARTENZA"].dt.day
+
+    fields_label = "ANNO/MESE/GIORNO" if has_day else "ANNO/MESE"
+    print(f"  Riallineati {fields_label}: {corrected_years} anno/i corretti in {context_label}")
+    return df
+
+
 def clean_flag_transito(series: pd.Series) -> pd.Series:
     """Normalizza FLAG_TRANSITO: strip + title case + mappa valori noti."""
     def _fix(val):
@@ -215,25 +245,28 @@ def clean_allarmi(df: pd.DataFrame) -> pd.DataFrame:
     n_after  = df["DATA_PARTENZA"].notna().sum()
     print(f"  DATA_PARTENZA parsed: {n_after}/{n_before} validi")
 
-    # 4. Normalizza ZONA
+    # 4. Riallinea anno/mese con la data
+    df = align_temporal_columns(df, has_day=False, context_label="ALLARMI")
+
+    # 5. Normalizza ZONA
     n_invalid = (~df["ZONA"].isin(ZONE_VALIDE)).sum()
     df["ZONA"] = clean_zona(df["ZONA"])
     print(f"  ZONA: rimossi {n_invalid} valori fuori range")
 
-    # 5. Normalizza TOT → numerico
+    # 6. Normalizza TOT → numerico
     df["TOT"] = pd.to_numeric(df["TOT"], errors="coerce")
 
-    # 6. Strip su colonne stringa chiave
+    # 7. Strip su colonne stringa chiave
     for col in ["AREOPORTO_ARRIVO", "AREOPORTO_PARTENZA", "CODICE_PAESE_ARR",
                 "CODICE_PAESE_PART", "PAESE_ARR", "PAESE_PART", "MOTIVO_ALLARME"]:
         if col in df.columns:
             df[col] = df[col].str.strip()
 
-    # 7. Normalizza CODICE_PAESE_ARR: 'IT' → 'ITA' (inconsistenza trovata nell'EDA)
+    # 8. Normalizza CODICE_PAESE_ARR: 'IT' → 'ITA' (inconsistenza trovata nell'EDA)
     df["CODICE_PAESE_ARR"] = df["CODICE_PAESE_ARR"].replace({"IT": "ITA"})
     df["CODICE_PAESE_PART"] = df["CODICE_PAESE_PART"].replace({"GB": "GBR", "TR": "TUR"})
 
-    # 8. Estrai colonne temporali da DATA_PARTENZA (utili per feature engineering)
+    # 9. Estrai colonne temporali da DATA_PARTENZA (utili per feature engineering)
     df["ora_partenza"]      = df["DATA_PARTENZA"].dt.hour
     df["giorno_settimana"]  = df["DATA_PARTENZA"].dt.dayofweek   # 0=lunedì
     df["mese"]              = df["DATA_PARTENZA"].dt.month
@@ -261,43 +294,46 @@ def clean_viaggiatori(df: pd.DataFrame) -> pd.DataFrame:
     df["DATA_PARTENZA"] = clean_data_partenza(df["DATA_PARTENZA"])
     print(f"  DATA_PARTENZA parsed: {df['DATA_PARTENZA'].notna().sum()}/{len(df)} validi")
 
-    # 4. Normalizza GENERE
+    # 4. Riallinea anno/mese/giorno con la data
+    df = align_temporal_columns(df, has_day=True, context_label="TIPOLOGIA_VIAGGIATORE")
+
+    # 5. Normalizza GENERE
     before_vals = df["GENERE"].value_counts().nlargest(5).to_dict()
     df["GENERE"] = clean_genere(df["GENERE"])
     print(f"  GENERE normalizzato: {before_vals} → {df['GENERE'].value_counts().to_dict()}")
 
-    # 5. Normalizza TIPO_DOCUMENTO
+    # 6. Normalizza TIPO_DOCUMENTO
     df["TIPO_DOCUMENTO"] = clean_tipo_documento(df["TIPO_DOCUMENTO"])
     print(f"  TIPO_DOCUMENTO: {df['TIPO_DOCUMENTO'].value_counts().to_dict()}")
 
-    # 6. Normalizza FASCIA_ETA
+    # 7. Normalizza FASCIA_ETA
     n_invalid = (~df["FASCIA_ETA"].isin(FASCIA_ETA_VALID)).sum()
     df["FASCIA_ETA"] = clean_fascia_eta(df["FASCIA_ETA"])
     print(f"  FASCIA_ETA: corretti {n_invalid} valori non validi")
 
-    # 7. Normalizza FLAG_TRANSITO
+    # 8. Normalizza FLAG_TRANSITO
     df["FLAG_TRANSITO"] = clean_flag_transito(df["FLAG_TRANSITO"])
 
-    # 8. Normalizza ZONA
+    # 9. Normalizza ZONA
     df["ZONA"] = clean_zona(df["ZONA"])
 
-    # 9. Strip su colonne stringa chiave
+    # 10. Strip su colonne stringa chiave
     for col in ["AREOPORTO_ARRIVO", "AREOPORTO_PARTENZA", "NAZIONALITA",
                 "CODICE_PAESE_ARR", "CODICE_PAESE_PART", "ESITO_CONTROLLO",
                 "COMPAGNIA_AEREA", "NUMERO_VOLO"]:
         if col in df.columns:
             df[col] = df[col].str.strip() if df[col].dtype == object else df[col]
 
-    # 10. Normalizza NAZIONALITA: valori spuri → ND
+    # 11. Normalizza NAZIONALITA: valori spuri → ND
     valori_spuri_naz = {"ND", "-", "?", "n.d.", "//", "unknown"}
     df["NAZIONALITA"] = df["NAZIONALITA"].apply(
         lambda x: "ND" if pd.isna(x) or str(x).strip() in valori_spuri_naz else str(x).strip()
     )
 
-    # 11. Aggiungi feature derivate
+    # 12. Aggiungi feature derivate
     df = add_derived_features_viaggiatori(df)
 
-    # 12. Estrai colonne temporali
+    # 13. Estrai colonne temporali
     df["ora_partenza"]     = df["DATA_PARTENZA"].dt.hour
     df["giorno_settimana"] = df["DATA_PARTENZA"].dt.dayofweek
     df["mese"]             = df["DATA_PARTENZA"].dt.month
