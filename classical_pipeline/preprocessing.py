@@ -214,10 +214,82 @@ def add_derived_features_viaggiatori(df: pd.DataFrame) -> pd.DataFrame:
     - tasso_investigati = INVESTIGATI / ENTRATI
     """
     for col in ["ENTRATI", "ALLARMATI", "INVESTIGATI"]:
-        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+        df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    df["tasso_allarme"]     = np.where(df["ENTRATI"] > 0, df["ALLARMATI"]    / df["ENTRATI"], 0.0)
-    df["tasso_investigati"] = np.where(df["ENTRATI"] > 0, df["INVESTIGATI"]  / df["ENTRATI"], 0.0)
+    # Se ENTRATI e' 0, i tassi sono definiti 0.0; se ENTRATI e' mancante restano NaN.
+    df["tasso_allarme"] = np.where(
+        df["ENTRATI"].isna(),
+        np.nan,
+        np.where(df["ENTRATI"] > 0, df["ALLARMATI"] / df["ENTRATI"], 0.0),
+    )
+    df["tasso_investigati"] = np.where(
+        df["ENTRATI"].isna(),
+        np.nan,
+        np.where(df["ENTRATI"] > 0, df["INVESTIGATI"] / df["ENTRATI"], 0.0),
+    )
+    return df
+
+
+def clean_tot_allarmi(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Normalizza TOT come conteggio non negativo.
+    Valori negativi vengono impostati a NaN per evitare distorsioni.
+    """
+    df["TOT"] = pd.to_numeric(df["TOT"], errors="coerce")
+    n_negative = int((df["TOT"] < 0).sum())
+    if n_negative > 0:
+        df.loc[df["TOT"] < 0, "TOT"] = np.nan
+    print(f"  TOT normalizzato: {n_negative} valori negativi impostati a NaN")
+    return df
+
+
+def enforce_count_constraints_viaggiatori(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Applica vincoli di dominio sui conteggi:
+      - ENTRATI >= 0
+      - 0 <= INVESTIGATI <= ENTRATI
+      - 0 <= ALLARMATI <= ENTRATI
+    """
+    for col in ["ENTRATI", "INVESTIGATI", "ALLARMATI"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    neg_entrati = int((df["ENTRATI"] < 0).sum())
+    neg_investigati = int((df["INVESTIGATI"] < 0).sum())
+    neg_allarmati = int((df["ALLARMATI"] < 0).sum())
+
+    if neg_entrati > 0:
+        df.loc[df["ENTRATI"] < 0, "ENTRATI"] = np.nan
+    if neg_investigati > 0:
+        df.loc[df["INVESTIGATI"] < 0, "INVESTIGATI"] = np.nan
+    if neg_allarmati > 0:
+        df.loc[df["ALLARMATI"] < 0, "ALLARMATI"] = np.nan
+
+    over_investigati = int(((df["INVESTIGATI"] > df["ENTRATI"]) & df["ENTRATI"].notna()).sum())
+    over_allarmati = int(((df["ALLARMATI"] > df["ENTRATI"]) & df["ENTRATI"].notna()).sum())
+
+    df.loc[
+        (df["ENTRATI"].notna()) & (df["INVESTIGATI"] > df["ENTRATI"]),
+        "INVESTIGATI",
+    ] = df.loc[
+        (df["ENTRATI"].notna()) & (df["INVESTIGATI"] > df["ENTRATI"]),
+        "ENTRATI",
+    ]
+    df.loc[
+        (df["ENTRATI"].notna()) & (df["ALLARMATI"] > df["ENTRATI"]),
+        "ALLARMATI",
+    ] = df.loc[
+        (df["ENTRATI"].notna()) & (df["ALLARMATI"] > df["ENTRATI"]),
+        "ENTRATI",
+    ]
+
+    print(
+        "  Conteggi vincolati: "
+        f"ENTRATI<0 -> NaN: {neg_entrati}, "
+        f"INVESTIGATI<0 -> NaN: {neg_investigati}, "
+        f"ALLARMATI<0 -> NaN: {neg_allarmati}, "
+        f"INVESTIGATI>ENTRATI capped: {over_investigati}, "
+        f"ALLARMATI>ENTRATI capped: {over_allarmati}"
+    )
     return df
 
 
@@ -253,8 +325,8 @@ def clean_allarmi(df: pd.DataFrame) -> pd.DataFrame:
     df["ZONA"] = clean_zona(df["ZONA"])
     print(f"  ZONA: rimossi {n_invalid} valori fuori range")
 
-    # 6. Normalizza TOT → numerico
-    df["TOT"] = pd.to_numeric(df["TOT"], errors="coerce")
+    # 6. Normalizza TOT come conteggio non negativo
+    df = clean_tot_allarmi(df)
 
     # 7. Strip su colonne stringa chiave
     for col in ["AREOPORTO_ARRIVO", "AREOPORTO_PARTENZA", "CODICE_PAESE_ARR",
@@ -330,10 +402,13 @@ def clean_viaggiatori(df: pd.DataFrame) -> pd.DataFrame:
         lambda x: "ND" if pd.isna(x) or str(x).strip() in valori_spuri_naz else str(x).strip()
     )
 
-    # 12. Aggiungi feature derivate
+    # 12. Applica vincoli di dominio sui conteggi
+    df = enforce_count_constraints_viaggiatori(df)
+
+    # 13. Aggiungi feature derivate
     df = add_derived_features_viaggiatori(df)
 
-    # 13. Estrai colonne temporali
+    # 14. Estrai colonne temporali
     df["ora_partenza"]     = df["DATA_PARTENZA"].dt.hour
     df["giorno_settimana"] = df["DATA_PARTENZA"].dt.dayofweek
     df["mese"]             = df["DATA_PARTENZA"].dt.month
