@@ -20,10 +20,15 @@ Border control authorities and airport operators manage large volumes of passeng
 classical-vs-multiagent/
 ├── data/
 │   ├── raw/              # Raw CSV/JSON datasets
-│   └── processed/        # Cleaned & feature-engineered data
+│   └── processed/        # Dati clean + output ufficiali pipeline
 ├── classical_pipeline/   # Classical ML pipeline
 ├── multiagent_pipeline/  # Multi-agent system
-├── streamlit_app/        # Streamlit UI
+│   ├── agents/           # Data/Feature/Baseline/Outlier/Report nodes
+│   ├── tests/            # Smoke + E2E validation
+│   └── main.py           # Orchestrator run_pipeline
+├── streamlit_app/        # Frontend Streamlit
+├── scripts/              # Script ad-hoc/runner manuali
+├── docs/                 # Checklist demo e note operative
 ├── notebooks/            # Exploratory analysis
 ├── reports/              # Generated anomaly reports
 └── README.md
@@ -33,6 +38,7 @@ classical-vs-multiagent/
 
 ```bash
 pip install -r requirements.txt
+cp .env.example .env
 ```
 
 ## Usage
@@ -44,13 +50,38 @@ python classical_pipeline/main.py --input data/raw/transits.csv
 
 ### Multi-Agent Pipeline
 ```bash
-python multiagent_pipeline/main.py --input data/raw/transits.csv
+PYTHONPATH=. python3 multiagent_pipeline/main.py
+```
+
+### Script Runner (ad-hoc)
+```bash
+PYTHONPATH=. python3 scripts/run_data_agent.py
+```
+
+### End-to-End Validation
+```bash
+# Sempre senza costi LLM
+PYTHONPATH=. python3 multiagent_pipeline/tests/e2e_validation.py
+
+# Smoke LLM opzionale (1 perimetro piccolo)
+RUN_LLM_SMOKE=true PYTHONPATH=. python3 multiagent_pipeline/tests/e2e_validation.py
 ```
 
 ### Streamlit App
 ```bash
 streamlit run streamlit_app/app.py
 ```
+
+Interfaccia consigliata:
+- sidebar con filtri perimetro (`anno`, `paese_partenza`, aeroporti, `zona`)
+- esecuzione orchestrator end-to-end
+- tab dedicati a anomalie, report e debug JSON
+- toggle dry-run per test low-cost senza chiamate LLM
+
+## Official Outputs
+
+- `data/processed/multiagent_report.json`
+- `data/processed/multiagent_validation_report.json`
 
 ## Team
 

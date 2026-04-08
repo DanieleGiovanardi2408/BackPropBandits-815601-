@@ -1,0 +1,135 @@
+{
+  "generated_at_utc": "2026-04-08T17:19:56.897131+00:00",
+  "run_llm_smoke": false,
+  "results": [
+    {
+      "name": "smoke_no_llm",
+      "ok": true,
+      "perimeter": {
+        "anno": 2024
+      },
+      "run_config": {
+        "run_report": true,
+        "use_llm": false,
+        "dry_run": true,
+        "continue_on_error": false,
+        "save_outputs": false
+      },
+      "runtime_s": 0.531,
+      "completed_stages": [
+        "data",
+        "feature",
+        "baseline",
+        "outlier",
+        "report"
+      ],
+      "failed_stages": [],
+      "step_errors": {},
+      "report_path": null
+    },
+    {
+      "name": "reg_2024_all",
+      "ok": true,
+      "perimeter": {
+        "anno": 2024
+      },
+      "run_config": {
+        "run_report": false,
+        "use_llm": false,
+        "dry_run": true,
+        "continue_on_error": false,
+        "save_outputs": false
+      },
+      "runtime_s": 0.506,
+      "completed_stages": [
+        "data",
+        "feature",
+        "baseline",
+        "outlier"
+      ],
+      "failed_stages": [],
+      "step_errors": {},
+      "report_path": null
+    },
+    {
+      "name": "reg_2024_algeria",
+      "ok": true,
+      "perimeter": {
+        "anno": 2024,
+        "paese_partenza": "Algeria"
+      },
+      "run_config": {
+        "run_report": false,
+        "use_llm": false,
+        "dry_run": true,
+        "continue_on_error": false,
+        "save_outputs": false
+      },
+      "runtime_s": 0.209,
+      "completed_stages": [
+        "data",
+        "feature",
+        "baseline",
+        "outlier"
+      ],
+      "failed_stages": [],
+      "step_errors": {},
+      "report_path": null
+    },
+    {
+      "name": "reg_2024_fco",
+      "ok": true,
+      "perimeter": {
+        "anno": 2024,
+        "aeroporto_arrivo": "FCO"
+      },
+      "run_config": {
+        "run_report": false,
+        "use_llm": false,
+        "dry_run": true,
+        "continue_on_error": false,
+        "save_outputs": false
+      },
+      "runtime_s": 0.285,
+      "completed_stages": [
+        "data",
+        "feature",
+        "baseline",
+        "outlier"
+      ],
+      "failed_stages": [],
+      "step_errors": {},
+      "report_path": null
+    },
+    {
+      "name": "reg_2024_zona1",
+      "ok": true,
+      "perimeter": {
+        "anno": 2024,
+        "zona": 1
+      },
+      "run_config": {
+        "run_report": false,
+        "use_llm": false,
+        "dry_run": true,
+        "continue_on_error": false,
+        "save_outputs": false
+      },
+      "runtime_s": 0.22,
+      "completed_stages": [
+        "data",
+        "feature",
+        "baseline",
+        "outlier"
+      ],
+      "failed_stages": [],
+      "step_errors": {},
+      "report_path": null
+    }
+  ],
+  "summary": {
+    "n_tests": 5,
+    "n_ok": 5,
+    "n_failed": 0
+  }
+}

@@ -22,6 +22,7 @@ if __package__ in (None, ""):
 
 import json
 import logging
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -88,6 +89,7 @@ def run_feature_agent(
         Nuovo AgentState con df_features e feature_meta popolati.
     """
     logger.info("FeatureAgent ── Avvio")
+    started_at = time.perf_counter()
     perimeter = state.get("perimeter") or {}
     logger.info("FeatureAgent start | perimeter=%s", perimeter)
 
@@ -147,6 +149,7 @@ def run_feature_agent(
             "feature_cols": df_features.select_dtypes(include="number").columns.tolist(),
             "quality": quality,
             "saved_to": saved_to,
+            "elapsed_s": round(time.perf_counter() - started_at, 3),
         }
 
         logger.info("FeatureAgent ✓ Completato")
@@ -160,7 +163,11 @@ def run_feature_agent(
         return {
             **state,
             "df_features": None,
-            "feature_meta": {"error": str(e)},
+            "feature_meta": {
+                "error": str(e),
+                "user_message": "Feature extraction non riuscita: controlla filtri e dataset di input.",
+                "elapsed_s": round(time.perf_counter() - started_at, 3),
+            },
         }
 
 

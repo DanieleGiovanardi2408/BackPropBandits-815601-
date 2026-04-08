@@ -13,6 +13,7 @@ if __package__ in (None, ""):
     __package__ = "multiagent_pipeline.agents"
 
 import logging
+import time
 from pathlib import Path
 
 import numpy as np
@@ -45,6 +46,7 @@ def run_outlier_agent(
 ) -> AgentState:
     """Calcola score ensemble e risk label su `state['df_baseline']`."""
     logger.info("OutlierAgent -- Avvio")
+    started_at = time.perf_counter()
 
     try:
         df = state.get("df_baseline")
@@ -100,6 +102,7 @@ def run_outlier_agent(
             "top_rotte": out.sort_values("ensemble_score", ascending=False)
             .head(10)[["ROTTA", "ensemble_score", "risk_label"]]
             .to_dict(orient="records"),
+            "elapsed_s": round(time.perf_counter() - started_at, 3),
         }
 
         logger.info(
@@ -109,7 +112,15 @@ def run_outlier_agent(
         return {**state, "df_anomalies": out, "anomaly_meta": meta}
     except Exception as e:
         logger.error("OutlierAgent ✗ Errore: %s", e)
-        return {**state, "df_anomalies": None, "anomaly_meta": {"error": str(e)}}
+        return {
+            **state,
+            "df_anomalies": None,
+            "anomaly_meta": {
+                "error": str(e),
+                "user_message": "Outlier detection fallita: verifica output baseline e filtri selezionati.",
+                "elapsed_s": round(time.perf_counter() - started_at, 3),
+            },
+        }
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ if __package__ in (None, ""):
     __package__ = "multiagent_pipeline.agents"
 
 import logging
+import time
 from pathlib import Path
 
 import numpy as np
@@ -43,6 +44,7 @@ def run_baseline_agent(
 ) -> AgentState:
     """Calcola baseline robusta su `state['df_features']`."""
     logger.info("BaselineAgent ── Avvio")
+    started_at = time.perf_counter()
 
     try:
         df_features = state.get("df_features")
@@ -98,6 +100,7 @@ def run_baseline_agent(
             "feature_cols_missing": missing_cols,
             "zscore_stats": stats,
             "saved_to": saved_to,
+            "elapsed_s": round(time.perf_counter() - started_at, 3),
         }
 
         logger.info(
@@ -115,7 +118,11 @@ def run_baseline_agent(
         return {
             **state,
             "df_baseline": None,
-            "baseline_meta": {"error": str(e)},
+            "baseline_meta": {
+                "error": str(e),
+                "user_message": "Baseline non calcolabile: verifica che le feature siano presenti e valide.",
+                "elapsed_s": round(time.perf_counter() - started_at, 3),
+            },
         }
 
 

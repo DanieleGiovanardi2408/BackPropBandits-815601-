@@ -1,0 +1,28 @@
+{
+  "generated_at_utc": "2026-04-08T16:25:52.182092+00:00",
+  "perimeter": {
+    "anno": 2024,
+    "paese_partenza": "Algeria"
+  },
+  "n_rotte_analizzate": 2,
+  "distribution": {
+    "alta": 1,
+    "media": 0,
+    "normale": 1
+  },
+  "thresholds": {
+    "soglia_alta": 0.3579,
+    "soglia_media": 0.2897
+  },
+  "findings": [
+    {
+      "ROTTA": "ALG-MXP",
+      "risk_label": "ALTA",
+      "ensemble_score": 0.44999999999999996,
+      "score_composito": 0.6365393938620878,
+      "baseline_score": 0.551856075935396,
+      "explanation": "La rotta ALG-MXP (Algeri-Milano Malpensa) presenta un **livello di rischio ALTA** con uno score composito di 0.6365, significativamente superiore al baseline di 0.5519, indicando una deviazione rilevante dal comportamento normale. L'ensemble score di 0.4500 conferma l'anomalia attraverso molteplici modelli di analisi. Questa combinazione di metriche suggerisce pattern di volo o caratteristiche operative che si discostano dalle aspettative standard per questa tratta, richiedendo un'attenzione particolare nei controlli di sicurezza."
+    }
+  ],
+  "summary": "Analisi completata su 2 rotte (anno=2024, paese_partenza=Algeria). Distribuzione rischio: ALTA=1, MEDIA=0, NORMALE=1. Sono state prodotte spiegazioni LLM per 1 rotte ALTA/MEDIA."
+}
