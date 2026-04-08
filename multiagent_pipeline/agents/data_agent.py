@@ -43,6 +43,10 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PATHS = {k: str(_PROJECT_ROOT / v) if not Path(v).is_absolute() else v
          for k, v in PATHS.items()}
 
+# Output del DataAgent (artefatti per audit / handoff al prossimo agente)
+DATA_AGENT_OUTPUT_JSON = _PROJECT_ROOT / "data" / "processed" / "data_agent_output.json"
+DATA_AGENT_OUTPUT_CSV  = _PROJECT_ROOT / "data" / "processed" / "data_agent_filtered.csv"
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TOOL 1 — load_dataset
@@ -219,6 +223,17 @@ def data_agent_node(state: AgentState) -> AgentState:
         # 6. Deserializza DataFrame
         df_raw = pd.DataFrame(json.loads(data_json))
 
+        # 7. Salva artefatti su disco (audit + handoff)
+        DATA_AGENT_OUTPUT_JSON.parent.mkdir(parents=True, exist_ok=True)
+        artifact = {
+            "perimeter": perimeter.model_dump(),
+            "data_meta": stats,
+            "output_csv": str(DATA_AGENT_OUTPUT_CSV.relative_to(_PROJECT_ROOT)),
+        }
+        DATA_AGENT_OUTPUT_JSON.write_text(json.dumps(artifact, indent=2, ensure_ascii=False))
+        df_raw.to_csv(DATA_AGENT_OUTPUT_CSV, index=False)
+        print(f"  [save] {DATA_AGENT_OUTPUT_JSON.name} + {DATA_AGENT_OUTPUT_CSV.name}")
+
         print(f"[DataAgent] ✓ Completato — "
               f"{stats['n_righe']} righe, "
               f"{stats['n_rotte_uniche']} rotte uniche")
@@ -244,13 +259,109 @@ def data_agent_node(state: AgentState) -> AgentState:
 # TEST STANDALONE
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _pick_value(df, col: str, label: str, cast=str, top: int = 30):
+    """Mostra i valori unici della colonna e fa scegliere all'utente.
+
+    L'utente puo' scrivere il numero (dalla lista) o digitare direttamente il valore.
+    """
+    if col not in df.columns:
+        print(f"  ⚠ Colonna {col} non trovata, skip.")
+        return None
+
+    values = (
+        df[col].dropna().value_counts().head(top).index.tolist()
+    )
+    if not values:
+        print(f"  ⚠ Nessun valore disponibile per {col}.")
+        return None
+
+    print(f"\n  ── Valori disponibili per {label} (top {len(values)}) ──")
+    for i, v in enumerate(values, 1):
+        n = int((df[col] == v).sum())
+        print(f"    {i:>3}. {v}  ({n} righe)")
+    raw = input(f"  Scegli (numero o valore esatto): ").strip()
+    if not raw:
+        return None
+
+    # Numero della lista?
+    if raw.isdigit() and 1 <= int(raw) <= len(values):
+        return cast(values[int(raw) - 1])
+
+    # Valore digitato a mano
+    try:
+        return cast(raw)
+    except Exception as e:
+        print(f"  ⚠ valore non valido: {e}")
+        return None
+
+
+def _interactive_perimeter() -> dict:
+    """CLI interattiva: mostra i filtri disponibili e i valori reali del dataset."""
+    # Carica il dataset una sola volta per popolare i menu
+    try:
+        df_preview = pd.read_csv(PATHS["dataset_merged"])
+    except Exception as e:
+        print(f"  ⚠ Impossibile caricare dataset per anteprima: {e}")
+        df_preview = None
+
+    # (key, label, colonna_csv, cast)
+    fields = [
+        ("anno",               "Anno",                  "ANNO_PARTENZA",      int),
+        ("aeroporto_partenza", "Aeroporto di partenza", "AREOPORTO_PARTENZA", str),
+        ("aeroporto_arrivo",   "Aeroporto di arrivo",   "AREOPORTO_ARRIVO",   str),
+        ("paese_partenza",     "Paese di partenza",     "PAESE_PART",         str),
+        ("zona",               "Zona geografica",       "ZONA",               int),
+    ]
+
+    print("\n── Filtri disponibili (perimetro) ────────────────────")
+    for i, (key, label, *_) in enumerate(fields, 1):
+        print(f"  {i}. {key:20s} — {label}")
+    print("──────────────────────────────────────────────────────")
+
+    raw = input("Quali filtri vuoi applicare? (numeri o nomi separati da virgola, vuoto = nessuno): ").strip()
+    if not raw:
+        return {}
+
+    keys = [k for k, *_ in fields]
+    idx = []
+    for tok in raw.split(","):
+        tok = tok.strip().lower()
+        if not tok:
+            continue
+        if tok.isdigit():
+            i = int(tok) - 1
+            if 0 <= i < len(fields):
+                idx.append(i)
+        elif tok in keys:
+            idx.append(keys.index(tok))
+        else:
+            print(f"  ⚠ ignorato: '{tok}' (non e' un numero ne' un nome valido)")
+
+    perimeter = {}
+    for i in idx:
+        if i < 0 or i >= len(fields):
+            continue
+        key, label, col, cast = fields[i]
+        if df_preview is not None:
+            v = _pick_value(df_preview, col, label, cast=cast)
+        else:
+            raw_val = input(f"  {label} = ").strip()
+            v = cast(raw_val) if raw_val else None
+        if v is not None:
+            perimeter[key] = v
+    return perimeter
+
+
 if __name__ == "__main__":
     print("=" * 55)
-    print("  TEST DataAgent — perimetro: anno=2024, Algeria")
+    print("  DataAgent — modalità interattiva")
     print("=" * 55)
 
+    perimeter = _interactive_perimeter()
+    print(f"\n  Perimetro selezionato: {perimeter or '(nessuno)'}")
+
     stato_iniziale: AgentState = {
-        "perimeter"    : {"anno": 2024, "paese_partenza": "Algeria"},
+        "perimeter"    : perimeter,
         "df_raw"       : None,
         "data_meta"    : None,
         "df_features"  : None,
