@@ -189,7 +189,7 @@ def get_dataset_stats(data_json: str) -> str:
 # FUNZIONE NODO LANGGRAPH
 # ══════════════════════════════════════════════════════════════════════════════
 
-def data_agent_node(state: AgentState) -> AgentState:
+def data_agent_node(state: AgentState, save_artifacts: bool = False) -> AgentState:
     """
     Nodo LangGraph per il DataAgent.
 
@@ -198,6 +198,9 @@ def data_agent_node(state: AgentState) -> AgentState:
       - state["df_allarmi"]      (allarmi_clean filtrato)
       - state["df_viaggiatori"]  (viaggiatori_clean filtrato)
       - state["data_meta"]       (statistiche principali)
+
+    Args:
+        save_artifacts: se True salva JSON/CSV di debug su data/processed.
 
     In caso di errore non lancia eccezioni: popola data_meta["error"]
     e lascia df_raw = None, così il grafo può gestire il fallimento.
@@ -260,16 +263,17 @@ def data_agent_node(state: AgentState) -> AgentState:
         stats["n_righe_allarmi"] = int(len(df_allarmi))
         stats["n_righe_viaggiatori"] = int(len(df_viaggiatori))
 
-        # 7. Salva artefatti su disco (audit + handoff)
-        DATA_AGENT_OUTPUT_JSON.parent.mkdir(parents=True, exist_ok=True)
-        artifact = {
-            "perimeter": perimeter.model_dump(),
-            "data_meta": stats,
-            "output_csv": str(DATA_AGENT_OUTPUT_CSV.relative_to(_PROJECT_ROOT)),
-        }
-        DATA_AGENT_OUTPUT_JSON.write_text(json.dumps(artifact, indent=2, ensure_ascii=False))
-        df_raw.to_csv(DATA_AGENT_OUTPUT_CSV, index=False)
-        print(f"  [save] {DATA_AGENT_OUTPUT_JSON.name} + {DATA_AGENT_OUTPUT_CSV.name}")
+        # 7. Salvataggio opzionale artefatti debug (non usati per l'handoff tra agenti)
+        if save_artifacts:
+            DATA_AGENT_OUTPUT_JSON.parent.mkdir(parents=True, exist_ok=True)
+            artifact = {
+                "perimeter": perimeter.model_dump(),
+                "data_meta": stats,
+                "output_csv": str(DATA_AGENT_OUTPUT_CSV.relative_to(_PROJECT_ROOT)),
+            }
+            DATA_AGENT_OUTPUT_JSON.write_text(json.dumps(artifact, indent=2, ensure_ascii=False))
+            df_raw.to_csv(DATA_AGENT_OUTPUT_CSV, index=False)
+            logger.info("[save] %s + %s", DATA_AGENT_OUTPUT_JSON.name, DATA_AGENT_OUTPUT_CSV.name)
 
         logger.info(
             "DataAgent ✓ Completato — %d righe, %d rotte uniche",
@@ -418,7 +422,7 @@ if __name__ == "__main__":
         "report_path"  : None,
     }
 
-    stato_finale = data_agent_node(stato_iniziale)
+    stato_finale = data_agent_node(stato_iniziale, save_artifacts=True)
 
     print("── Risultato ─────────────────────────────────────────")
     if stato_finale["data_meta"].get("error"):
