@@ -20,6 +20,14 @@ Input  (da AgentState): state["perimeter"]
 Output (su AgentState): state["df_raw"], state["data_meta"]
 """
 
+# ── Bootstrap per esecuzione diretta (python data_agent.py) ──────────────────
+# Permette di lanciare il file sia come modulo (-m) sia come script (▶ VSCode).
+if __package__ in (None, ""):
+    import sys
+    from pathlib import Path as _P
+    sys.path.insert(0, str(_P(__file__).resolve().parents[2]))
+    __package__ = "multiagent_pipeline.agents"
+
 import json
 import pandas as pd
 from pathlib import Path
@@ -28,6 +36,12 @@ from typing import Optional
 from langchain_core.tools import tool
 
 from multiagent_pipeline.state import AgentState, Perimeter, PATHS
+
+# Risolvi i path del dataset rispetto alla root del progetto, cosi' funziona
+# da qualsiasi cwd (terminale, "Run File" di VSCode, debugger, ecc.)
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PATHS = {k: str(_PROJECT_ROOT / v) if not Path(v).is_absolute() else v
+         for k, v in PATHS.items()}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
