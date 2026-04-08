@@ -173,7 +173,7 @@ class AllarmiAggregator:
     - Metadati (ZONA, PAESE_PART, n_osservazioni)
     - OccurrencePivot
     - MotivoAllarmeFeatures
-    - Feature derivate: tasso_chiusura, tasso_rilevanza, tot_allarmi_log
+    - Feature derivate: tasso_chiusura, tasso_rilevanza, tot_allarmi_log, false_positive_rate
 
     Input:  df_allarmi pulito da preprocessing.py
     Output: DataFrame aggregato per ROTTA (una riga per rotta)
@@ -217,6 +217,19 @@ class AllarmiAggregator:
             agg.get("allarmi_rilevanti", pd.Series(0, index=agg.index)),
             agg.get("voli_con_allarmi",  pd.Series(0, index=agg.index))
         ).clip(0, 1)
+
+        # 6. false_positive_rate — integrata dal notebook del collega
+        #    (np_sdi + np_nsis + np_int) / (allarmi_sdi + allarmi_interpol)
+        numeratore_fp = (
+            agg.get("np_sdi",               pd.Series(0, index=agg.index)) +
+            agg.get("np_nsis",              pd.Series(0, index=agg.index)) +
+            agg.get("np_int",               pd.Series(0, index=agg.index))
+        )
+        denominatore_fp = (
+            agg.get("allarmi_sdi_occ",      pd.Series(0, index=agg.index)) +
+            agg.get("allarmi_interpol_occ", pd.Series(0, index=agg.index))
+        )
+        agg["false_positive_rate"] = safe_div(numeratore_fp, denominatore_fp).clip(0, 1)
 
         # Fill NaN nelle pct_
         pct_cols = [c for c in agg.columns if c.startswith("pct_")]
@@ -284,6 +297,7 @@ class ViaggiatoriAggregator:
     - Conteggi e tassi di allarme/investigazione
     - Profilo demografico predominante
     - EsitiPivot (con tassi di rischio)
+    - alarm_per_invest: tot_allarmati/tot_investigati, capped al p99
 
     Input:  df_viaggiatori pulito da preprocessing.py
     Output: DataFrame aggregato per ROTTA (una riga per rotta)
@@ -314,6 +328,12 @@ class ViaggiatoriAggregator:
         agg["tot_investigati"]     = agg["tot_investigati"].clip(lower=0)
         agg["tasso_allarme_medio"] = agg["tasso_allarme_medio"].clip(0, 1)
         agg["tasso_inv_medio"]     = agg["tasso_inv_medio"].clip(0, 1)
+
+        # alarm_per_invest — integrata dal notebook del collega
+        #   tot_allarmati / tot_investigati, capped al p99 per outlier estremi
+        agg["alarm_per_invest"] = safe_div(agg["tot_allarmati"], agg["tot_investigati"])
+        cap_p99 = agg["alarm_per_invest"].quantile(0.99)
+        agg["alarm_per_invest"] = agg["alarm_per_invest"].clip(upper=cap_p99)
 
         # 3. Merge con esiti pivot
         esiti = self._esiti_pivot.fit_transform(df, n_osservazioni=None)
