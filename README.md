@@ -141,15 +141,6 @@ pip install -r requirements.txt
 cp .env.example .env
 # Edit .env and add your Anthropic API key (only needed for LLM report generation)
 ```
-data/raw/ALLARMI.csv
-data/raw/TIPOLOGIA_VIAGGIATORE.csv
-```
-
-These files are not tracked by git for confidentiality reasons.
-
-## Running the Pipelines
-
-### Classical Pipeline (end-to-end)
 
 ### Environment Variables
 
