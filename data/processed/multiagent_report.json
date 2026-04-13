@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-09T08:41:08.978910+00:00",
+  "generated_at_utc": "2026-04-09T11:32:39.106019+00:00",
   "perimeter": {
     "anno": 2023
   },
@@ -20,7 +20,7 @@
       "ensemble_score": 0.9643122986969505,
       "score_composito": 0.4052958115816748,
       "baseline_score": 0.3758313415587461,
-      "explanation": "La rotta LGW-MXP (Londra Gatwick-Milano Malpensa) presenta un **livello di rischio ALTA** con un ensemble_score molto elevato di 0.9643, che indica una forte anomalia rilevata dai modelli predittivi. Nonostante gli score composito (0.4053) e baseline (0.3758) siano moderati, l'ensemble score quasi prossimo a 1 suggerisce pattern di volo significativamente devianti rispetto al comportamento normale atteso per questa rotta. L'anomalia potrebbe derivare da irregolarità operative, variazioni inusuali nei parametri di volo o discrepanze nei dati che richiedono un'analisi approfondita."
+      "explanation": "La rotta LGW-MXP (Londra Gatwick-Milano Malpensa) presenta un **livello di rischio ALTA** con un ensemble_score molto elevato di 0.9643, che indica una forte anomalia rilevata dai modelli predittivi. Nonostante gli score composito (0.4053) e baseline (0.3758) siano moderati, l'ensemble score quasi prossimo a 1 suggerisce pattern di volo significativamente devianti rispetto al comportamento normale atteso per questa tratta. L'anomalia potrebbe derivare da irregolarità operative, variazioni inusuali nei parametri di volo o discrepanze nei dati che richiedono un'analisi approfondita."
     },
     {
       "ROTTA": "STN-PSA",
@@ -28,7 +28,7 @@
       "ensemble_score": 0.9386050521601819,
       "score_composito": 0.35,
       "baseline_score": 0.4019099647840795,
-      "explanation": "La rotta STN-PSA presenta un **livello di rischio ALTA** con un ensemble_score molto elevato di **0.9386**, che indica una forte anomalia rilevata dai modelli di machine learning. Nonostante lo score_composito sia moderato (**0.3500**) e il baseline_score relativamente contenuto (**0.4019**), l'ensemble score quasi prossimo a 1 suggerisce pattern comportamentali o operativi significativamente devianti rispetto alla normalità. Questa discrepanza tra gli score richiede un'analisi approfondita per identificare le specifiche anomalie che hanno generato l'alert ad alta priorità."
+      "explanation": "La rotta STN-PSA presenta un **livello di rischio ALTA** con un ensemble_score molto elevato di **0.9386**, che indica una forte anomalia rilevata dai modelli di machine learning. Nonostante lo score_composito sia moderato (**0.3500**) e il baseline_score sia **0.4019**, l'ensemble score quasi prossimo a 1 segnala pattern di comportamento significativamente devianti rispetto alla normalità. Questa discrepanza tra gli score suggerisce che i modelli avanzati hanno identificato caratteristiche anomale non immediatamente evidenti nelle metriche tradizionali, giustificando la classificazione ad alto rischio."
     },
     {
       "ROTTA": "EWR-MXP",
@@ -36,7 +36,7 @@
       "ensemble_score": 0.9279319487346743,
       "score_composito": 0.34634667117022455,
       "baseline_score": 0.397074760001864,
-      "explanation": "La rotta EWR-MXP presenta un **livello di rischio ALTA** con un ensemble_score molto elevato di **0.9279**, che indica una forte anomalia rilevata dai modelli di machine learning. Nonostante gli score composito (0.3463) e baseline (0.3971) siano relativamente moderati, l'ensemble score quasi prossimo a 1 suggerisce pattern comportamentali o operativi significativamente devianti rispetto alla norma. Questa discrepanza tra gli score richiede un'analisi approfondita per identificare le specifiche anomalie che hanno generato l'alert ad alto rischio."
+      "explanation": "La rotta EWR-MXP presenta un **livello di rischio ALTA** con un ensemble_score molto elevato di **0.9279**, che indica una forte anomalia rilevata dai modelli di machine learning. Nonostante gli score composito (0.3463) e baseline (0.3971) siano relativamente contenuti, l'ensemble score quasi prossimo a 1 suggerisce pattern comportamentali o operativi significativamente devianti rispetto alla norma. Questa discrepanza tra metriche richiede un'analisi approfondita per identificare le specifiche anomalie che hanno generato l'alert ad alto rischio."
     },
     {
       "ROTTA": "TIA-PSA",
@@ -44,7 +44,7 @@
       "ensemble_score": 0.9178004394500741,
       "score_composito": 0.3428787262358478,
       "baseline_score": 0.39248491202691743,
-      "explanation": "La rotta TIA-PSA presenta un **livello di rischio ALTA** con un ensemble_score molto elevato di **0.9178**, che indica una forte anomalia rilevata dai modelli predittivi avanzati. Nonostante gli score composito (0.3429) e baseline (0.3925) siano relativamente contenuti, l'ensemble score quasi prossimo a 1 segnala pattern comportamentali o operativi significativamente devianti rispetto alla normalità. Questa discrepanza tra metriche suggerisce che l'anomalia potrebbe derivare da fattori complessi non completamente catturati dagli indicatori tradizionali, richiedendo un'analisi approfondita."
+      "explanation": "La rotta TIA-PSA presenta un **livello di rischio ALTA** con un ensemble_score molto elevato di **0.9178**, che indica una forte anomalia rilevata dai modelli di machine learning. Nonostante gli score composito (0.3429) e baseline (0.3925) siano relativamente contenuti, l'ensemble score quasi prossimo a 1 suggerisce pattern di volo o caratteristiche operative significativamente devianti rispetto ai profili normali. L'anomalia è quindi determinata principalmente dalla combinazione di fattori che i modelli ensemble hanno identificato come altamente atipici per questa specifica rotta."
     },
     {
       "ROTTA": "STN-CIA",
@@ -60,7 +60,7 @@
       "ensemble_score": 0.8093893851173871,
       "score_composito": 0.3057703787880558,
       "baseline_score": 0.34337176962995775,
-      "explanation": "La rotta DXB-NAP (Dubai-Napoli) presenta un **livello di rischio ALTA** con un ensemble_score molto elevato di **0.8094**, che indica una forte anomalia rilevata dai modelli predittivi avanzati. Nonostante lo score_composito (0.3058) e il baseline_score (0.3434) siano moderati, il valore dell'ensemble supera significativamente la soglia critica, suggerendo pattern comportamentali o caratteristiche del volo inconsueti rispetto ai profili normali. Questa discrepanza tra gli score richiede un'analisi approfondita poiché l'algoritmo ensemble ha identificato fattori di rischio non completamente catturati dalle metriche tradizionali."
+      "explanation": "La rotta DXB-NAP (Dubai-Napoli) presenta un **livello di rischio ALTA** con un ensemble_score elevato di **0.8094**, che indica una forte anomalia rilevata dai modelli predittivi avanzati. Nonostante gli score composito (0.3058) e baseline (0.3434) siano moderati, il modello ensemble evidenzia pattern comportamentali o operativi significativamente devianti rispetto ai profili normali. La discrepanza tra l'ensemble_score e gli altri indicatori suggerisce la presenza di fattori di rischio complessi che richiedono un'analisi approfondita."
     },
     {
       "ROTTA": "IST-BRI",
@@ -68,7 +68,7 @@
       "ensemble_score": 0.488685189333985,
       "score_composito": 0.28898837125554855,
       "baseline_score": 0.12263468354119912,
-      "explanation": "La rotta IST-BRI presenta un **livello di rischio ALTA** con uno score ensemble di 0.4887, significativamente superiore al baseline di 0.1226, indicando una deviazione marcata rispetto ai pattern normali. Lo score composito di 0.2890, pur essendo intermedio, conferma anomalie rilevate da multipli indicatori di rischio. Questa combinazione di metriche suggerisce la presenza di fattori di rischio che richiedono un'analisi approfondita e misure di controllo rafforzate."
+      "explanation": "La rotta IST-BRI presenta un **livello di rischio ALTA** con un ensemble_score di 0.4887, significativamente superiore al baseline_score di 0.1226, indicando una deviazione marcata rispetto ai pattern storici normali. Lo score_composito di 0.2890 conferma anomalie rilevate da multipli indicatori di rischio. Questa combinazione di metriche elevate suggerisce comportamenti di volo o caratteristiche operative che si discostano sostanzialmente dalla normalità attesa per questa tratta."
     },
     {
       "ROTTA": "GRU-FCO",
@@ -76,7 +76,7 @@
       "ensemble_score": 0.4845875175518398,
       "score_composito": 0.24108936632915062,
       "baseline_score": 0.15850302912090286,
-      "explanation": "La rotta GRU-FCO (San Paolo-Roma) presenta un **livello di rischio ALTA** con uno score ensemble di 0.4846, significativamente superiore al baseline di 0.1585, indicando una deviazione marcata rispetto ai pattern storici normali. Lo score composito di 0.2411 conferma anomalie rilevate su più dimensioni di analisi (temporali, comportamentali o documentali). Questa combinazione di metriche suggerisce la necessità di controlli approfonditi su passeggeri, bagagli o documentazione di volo per questa specifica tratta intercontinentale."
+      "explanation": "La rotta GRU-FCO (San Paolo-Roma) presenta un **livello di rischio ALTA** con uno score ensemble di 0.4846, significativamente superiore al baseline di 0.1585, indicando un'anomalia rispetto al comportamento storico normale di questa tratta. Il divario tra l'ensemble score e lo score composito (0.2411) suggerisce che i modelli di machine learning hanno rilevato pattern sospetti non completamente catturati dalle metriche tradizionali. Questa combinazione di indicatori giustifica un'attenzione particolare per possibili irregolarità operative, documentali o comportamentali associate al volo."
     },
     {
       "ROTTA": "CAI-FCO",
@@ -84,7 +84,7 @@
       "ensemble_score": 0.4325097467922686,
       "score_composito": 0.26975990924396775,
       "baseline_score": 0.0971856873503033,
-      "explanation": "La rotta CAI-FCO presenta un **livello di rischio ALTA** con un ensemble_score di 0.4325, che indica una significativa deviazione dai pattern normali di traffico aereo. Il score_composito di 0.2698 è quasi tre volte superiore al baseline_score di 0.0972, evidenziando anomalie rilevanti rispetto al comportamento storico della rotta. Questa combinazione di metriche suggerisce la necessità di approfondimenti per verificare eventuali irregolarità operative o di sicurezza."
+      "explanation": "La rotta CAI-FCO presenta un **livello di rischio ALTA** con uno score ensemble di 0.4325, significativamente superiore al baseline di 0.0972, indicando una deviazione marcata rispetto ai pattern storici normali. Lo score composito di 0.2698 conferma anomalie rilevate su più dimensioni di analisi (operativa, temporale, comportamentale). Questa combinazione di indicatori suggerisce che la rotta manifesta caratteristiche atipiche che richiedono un'attenzione prioritaria e verifiche approfondite."
     },
     {
       "ROTTA": "STN-PMO",
@@ -92,7 +92,7 @@
       "ensemble_score": 0.4169448803097181,
       "score_composito": 0.1714393631179239,
       "baseline_score": 0.1655837851281589,
-      "explanation": "La rotta STN-PMO (Stansted-Palermo) presenta un **livello di rischio ALTA** con un ensemble_score di 0.4169, significativamente superiore sia allo score_composito (0.1714) che al baseline_score (0.1656). Questa discrepanza indica che i modelli di machine learning rilevano pattern anomali non catturati dalle metriche standard, suggerendo comportamenti o caratteristiche passeggeri/operativi inusuali per questa tratta. L'elevato ensemble_score, quasi 2.5 volte superiore agli altri indicatori, evidenzia segnali di allerta che richiedono un'analisi approfondita dei fattori di rischio specifici."
+      "explanation": "La rotta STN-PMO presenta un **livello di rischio ALTA** con un ensemble_score di 0.4169, significativamente superiore sia allo score_composito (0.1714) che al baseline_score (0.1656). Questa discrepanza indica che i modelli di machine learning rilevano pattern anomali non catturati dalle metriche tradizionali, suggerendo comportamenti o caratteristiche passeggeri atipici rispetto al profilo standard della rotta. L'elevato ensemble_score, quasi 2.5 volte superiore agli altri indicatori, segnala la necessità di controlli approfonditi su questa tratta Londra Stansted-Palermo."
     },
     {
       "ROTTA": "KWI-MXP",
@@ -100,7 +100,7 @@
       "ensemble_score": 0.3451395638329417,
       "score_composito": 0.14686090431756985,
       "baseline_score": 0.13305403293000706,
-      "explanation": "La rotta KWI-MXP (Kuwait-Milano Malpensa) presenta un **livello di rischio MEDIO** con un ensemble_score di 0.3451, che indica una deviazione significativa dai pattern normali di traffico. Il score_composito (0.1469) e il baseline_score (0.1331) confermano anomalie rispetto ai profili storici attesi per questa tratta. L'anomalia potrebbe derivare da variazioni inusuali in parametri operativi come timing, frequenza o caratteristiche del volo rispetto agli standard consolidati per il collegamento Medio Oriente-Nord Italia."
+      "explanation": "La rotta KWI-MXP (Kuwait-Milano Malpensa) presenta un **livello di rischio MEDIO** con un ensemble_score di 0.3451, che indica una deviazione significativa dai pattern normali di traffico. Il score_composito (0.1469) e il baseline_score (0.1331) confermano anomalie rispetto ai profili storici attesi per questa tratta. L'anomalia potrebbe derivare da variazioni inusuali nei parametri operativi, nella frequenza dei voli o nelle caratteristiche del traffico passeggeri rispetto agli standard consolidati per collegamenti Medio Oriente-Europa."
     },
     {
       "ROTTA": "IST-VCE",
@@ -108,7 +108,7 @@
       "ensemble_score": 0.31707371012674673,
       "score_composito": 0.21,
       "baseline_score": 0.061317341770599575,
-      "explanation": "La rotta IST-VCE presenta un **livello di rischio MEDIO** con uno score ensemble di **0.3171**, significativamente superiore al baseline di **0.0613**, indicando un'anomalia rispetto al comportamento storico normale. Lo score composito di **0.2100** conferma una deviazione rilevante dai pattern attesi per questa tratta Istanbul-Venezia. L'anomalia potrebbe derivare da variazioni nei profili passeggeri, nelle tempistiche operative o in altri parametri di volo che si discostano dalle caratteristiche tipiche di questa rotta."
+      "explanation": "La rotta IST-VCE presenta un **livello di rischio MEDIO** con uno score ensemble di **0.3171**, significativamente superiore al baseline di **0.0613**, indicando una deviazione rilevante rispetto al comportamento normale della tratta. Lo score composito di **0.2100** conferma che multipli indicatori di rischio hanno contribuito alla classificazione anomala. L'anomalia suggerisce la presenza di pattern operativi o comportamentali che si discostano dalle caratteristiche tipiche dei voli Istanbul-Venezia e richiedono un'attenzione particolare."
     },
     {
       "ROTTA": "MHD-FCO",
@@ -124,7 +124,7 @@
       "ensemble_score": 0.31707371012674673,
       "score_composito": 0.21,
       "baseline_score": 0.061317341770599575,
-      "explanation": "La rotta OXB-BLQ presenta un **livello di rischio MEDIO** con uno score ensemble di **0.3171**, significativamente superiore al baseline di **0.0613**, indicando una deviazione rilevante rispetto ai pattern storici normali. Lo score composito di **0.2100** conferma che multiple componenti del modello hanno rilevato anomalie nel comportamento di questa tratta. L'elevato scostamento tra ensemble e baseline (oltre 5 volte superiore) suggerisce caratteristiche operative o di traffico inusuali che richiedono un'analisi approfondita."
+      "explanation": "La rotta OXB-BLQ presenta un **livello di rischio MEDIO** con uno score ensemble di **0.3171**, significativamente superiore al baseline di **0.0613**, indicando una deviazione rilevante dal comportamento normale. Lo score composito di **0.2100** conferma che questa tratta mostra caratteristiche anomale rispetto ai pattern storici attesi. L'anomalia potrebbe derivare da fattori operativi inusuali, frequenza di volo atipica o caratteristiche del collegamento tra questi aeroporti che si discostano dagli standard."
     },
     {
       "ROTTA": "TIA-RMI",
@@ -132,7 +132,7 @@
       "ensemble_score": 0.31707371012674673,
       "score_composito": 0.21,
       "baseline_score": 0.061317341770599575,
-      "explanation": "La rotta TIA-RMI presenta un **livello di rischio MEDIO** con un ensemble score di 0.3171, significativamente superiore al baseline di 0.0613, indicando un'anomalia rispetto ai pattern storici normali. Il punteggio composito di 0.2100 conferma che questa tratta mostra caratteristiche atipiche che si discostano dai comportamenti standard osservati. L'elevazione dello score ensemble rispetto al baseline (oltre 5 volte superiore) suggerisce la presenza di fattori di rischio che richiedono un'attenzione particolare nelle procedure di controllo."
+      "explanation": "La rotta TIA-RMI presenta un **livello di rischio MEDIO** con un ensemble score di 0.3171, significativamente superiore al baseline di 0.0613, indicando un'anomalia rispetto ai pattern storici normali. Il score composito di 0.2100 conferma una deviazione rilevante dai comportamenti standard attesi per questa tratta. L'incremento di oltre 5 volte rispetto al baseline suggerisce la presenza di fattori di rischio che richiedono un'attenzione particolare e possibili verifiche aggiuntive."
     }
   ],
   "summary": "Analisi completata su 39 rotte (anno=2023). Distribuzione rischio: ALTA=10, MEDIA=5, NORMALE=24. Sono state prodotte spiegazioni LLM per 15 rotte ALTA/MEDIA."

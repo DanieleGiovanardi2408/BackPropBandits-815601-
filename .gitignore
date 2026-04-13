@@ -48,6 +48,11 @@ reports/*.pdf
 .LSOverride
 ._*
 
+# ── R / RStudio ──────────────────────────────────────────────────
+.Rhistory
+.RData
+.Rproj.user
+
 # ── Windows ───────────────────────────────────────────────────────
 Thumbs.db
 ehthumbs.db
