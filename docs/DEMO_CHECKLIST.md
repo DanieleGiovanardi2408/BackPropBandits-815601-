@@ -22,6 +22,7 @@
   - tab anomalie (tabella + download CSV)
   - tab report (summary + findings + download JSON)
   - tab stage detail (stati/tempi/errori)
+  - **TODO**: tab confronto classico vs multi-agent (score affiancati + scatter concordanza)
 
 ## Output ufficiali da mostrare
 - `data/processed/multiagent_report.json`

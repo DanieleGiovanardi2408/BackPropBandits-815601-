@@ -1,19 +1,19 @@
-"""FeatureAgent — secondo nodo del grafo multi-agent.
+"""FeatureAgent — second node of the multi-agent graph.
 
-Responsabilità (dalla slide Reply):
+Responsibilities (from the Reply slide):
     "Builds aggregated features per route from cleaned datasets"
 
-Wrappa la classe FeatureBuilder (multiagent_pipeline.src.features) per
-trasformarla in un nodo LangGraph che legge/scrive AgentState.
+Wraps the FeatureBuilder class (multiagent_pipeline.src.features) to
+transform it into a LangGraph node that reads/writes AgentState.
 
-A differenza di DataAgent (che usa dataset_merged.csv), FeatureAgent
-ha bisogno dei due dataset clean separati perche' la logica di
-aggregazione li tratta diversamente. Carica direttamente da disco e
-applica lo stesso perimetro presente in state.
+Unlike DataAgent (which uses dataset_merged.csv), FeatureAgent
+needs the two separate clean datasets because the aggregation logic
+treats them differently. It loads directly from disk and applies
+the same perimeter present in the state.
 """
 from __future__ import annotations
 
-# ── Bootstrap per esecuzione diretta ─────────────────────────────────────────
+# ── Bootstrap for direct execution ───────────────────────────────────────────
 if __package__ in (None, ""):
     import sys
     from pathlib import Path as _P
@@ -37,15 +37,15 @@ _PROJECT_ROOT  = Path(__file__).resolve().parents[2]
 ALLARMI_PATH    = _PROJECT_ROOT / "data" / "processed" / "allarmi_clean.csv"
 VIAGGIATORI_PATH = _PROJECT_ROOT / "data" / "processed" / "viaggiatori_clean.csv"
 
-# Artefatti scritti dal DataAgent (handoff cross-process).
+# Artefacts written by DataAgent (cross-process handoff).
 DATA_AGENT_OUTPUT_JSON = _PROJECT_ROOT / "data" / "processed" / "data_agent_output.json"
 
 
 def _load_from_data_agent_artifact() -> tuple[pd.DataFrame, pd.DataFrame, dict] | None:
-    """Tenta di caricare allarmi/viaggiatori filtrati e perimetro dall'output del DataAgent.
+    """Attempts to load filtered allarmi/viaggiatori and perimeter from the DataAgent output.
 
-    Restituisce (df_allarmi, df_viaggiatori, perimeter) oppure None se l'artefatto
-    non esiste o e' incompleto.
+    Returns (df_allarmi, df_viaggiatori, perimeter) or None if the artefact
+    does not exist or is incomplete.
     """
     if not DATA_AGENT_OUTPUT_JSON.exists():
         return None
@@ -64,7 +64,7 @@ def _load_from_data_agent_artifact() -> tuple[pd.DataFrame, pd.DataFrame, dict] 
         df_v = pd.read_csv(v_path)
         return df_a, df_v, manifest.get("perimeter", {})
     except Exception as e:
-        logger.warning("Impossibile leggere artefatto DataAgent: %s", e)
+        logger.warning("Unable to read DataAgent artefact: %s", e)
         return None
 
 
@@ -75,63 +75,63 @@ def run_feature_agent(
     save_output: bool = False,
     output_path: Path | str | None = None,
 ) -> AgentState:
-    """Esegue il FeatureAgent: carica clean -> filtra perimetro -> aggrega feature.
+    """Runs the FeatureAgent: load clean -> filter perimeter -> aggregate features.
 
     Args:
-        state: stato corrente. Usa `state["perimeter"]` (opzionale).
-        allarmi_path / viaggiatori_path: override per test.
+        state: current state. Uses `state["perimeter"]` (optional).
+        allarmi_path / viaggiatori_path: override for testing.
 
     Args:
-        save_output: se True salva il DataFrame finale su disco.
-        output_path: path CSV di output. Se None usa PATHS["features"].
+        save_output: if True, saves the final DataFrame to disk.
+        output_path: CSV output path. If None, uses PATHS["features"].
 
     Returns:
-        Nuovo AgentState con df_features e feature_meta popolati.
+        New AgentState with df_features and feature_meta populated.
     """
-    logger.info("FeatureAgent ── Avvio")
+    logger.info("FeatureAgent ── Starting")
     started_at = time.perf_counter()
     perimeter = state.get("perimeter") or {}
     logger.info("FeatureAgent start | perimeter=%s", perimeter)
 
     try:
-        # Priorità 1: dataframe gia' nello stato (catena in-process con DataAgent).
+        # Priority 1: dataframes already in state (in-process chain with DataAgent).
         df_a = state.get("df_allarmi")
         df_v = state.get("df_viaggiatori")
 
         if isinstance(df_a, pd.DataFrame) and isinstance(df_v, pd.DataFrame):
-            logger.info("Input ricevuti da DataAgent (state): allarmi=%s viaggiatori=%s", df_a.shape, df_v.shape)
+            logger.info("Inputs received from DataAgent (state): allarmi=%s viaggiatori=%s", df_a.shape, df_v.shape)
         else:
-            # Priorità 2: artefatto su disco scritto dal DataAgent (handoff cross-process).
+            # Priority 2: artefact on disk written by DataAgent (cross-process handoff).
             artifact = _load_from_data_agent_artifact()
             if artifact is not None:
                 df_a, df_v, da_perimeter = artifact
                 logger.info(
-                    "Input letti dall'artefatto DataAgent: allarmi=%s viaggiatori=%s | perimetro=%s",
+                    "Inputs read from DataAgent artefact: allarmi=%s viaggiatori=%s | perimeter=%s",
                     df_a.shape, df_v.shape, da_perimeter,
                 )
-                # Allinea il perimetro a quello effettivamente applicato dal DataAgent
+                # Align perimeter to the one actually applied by DataAgent
                 if not perimeter:
                     perimeter = da_perimeter
             else:
-                # Priorità 3: fallback completo — clean originali + filtro locale.
+                # Priority 3: full fallback — original clean files + local filter.
                 df_a = pd.read_csv(allarmi_path)
                 df_v = pd.read_csv(viaggiatori_path)
-                logger.info("Clean caricati da disco (fallback): allarmi=%s viaggiatori=%s", df_a.shape, df_v.shape)
+                logger.info("Clean files loaded from disk (fallback): allarmi=%s viaggiatori=%s", df_a.shape, df_v.shape)
                 df_a = filter_by_perimeter(df_a, perimeter)
                 df_v = filter_by_perimeter(df_v, perimeter)
-                logger.info("Dopo filtro locale: allarmi=%s viaggiatori=%s", df_a.shape, df_v.shape)
+                logger.info("After local filter: allarmi=%s viaggiatori=%s", df_a.shape, df_v.shape)
 
         if df_a.empty and df_v.empty:
-            raise ValueError(f"Nessun dato trovato con i filtri: {perimeter}")
+            raise ValueError(f"No data found with filters: {perimeter}")
 
         builder = FeatureBuilder()
         df_features = builder.build(df_a, df_v)
 
         if df_features.empty:
-            raise ValueError(f"Nessuna feature generata con i filtri: {perimeter}")
+            raise ValueError(f"No features generated with filters: {perimeter}")
 
         quality = builder.quality_report(df_features)
-        logger.info("Features: %d rotte x %d colonne", df_features.shape[0], df_features.shape[1])
+        logger.info("Features: %d routes x %d columns", df_features.shape[0], df_features.shape[1])
         logger.info("Quality: %s", quality)
 
         saved_to = None
@@ -141,7 +141,7 @@ def run_feature_agent(
             out_path.parent.mkdir(parents=True, exist_ok=True)
             df_features.to_csv(out_path, index=False)
             saved_to = str(out_path)
-            logger.info("FeatureAgent output salvato in: %s", saved_to)
+            logger.info("FeatureAgent output saved to: %s", saved_to)
 
         feature_meta = {
             "n_rotte": int(df_features.shape[0]),
@@ -152,32 +152,35 @@ def run_feature_agent(
             "elapsed_s": round(time.perf_counter() - started_at, 3),
         }
 
-        logger.info("FeatureAgent ✓ Completato")
+        logger.info("FeatureAgent ✓ Completed")
         return {
             **state,
             "df_features": df_features,
             "feature_meta": feature_meta,
         }
     except Exception as e:
-        logger.error("FeatureAgent ✗ Errore: %s", e)
+        logger.error("FeatureAgent ✗ Error: %s", e)
         return {
             **state,
             "df_features": None,
             "feature_meta": {
                 "error": str(e),
-                "user_message": "Feature extraction non riuscita: controlla filtri e dataset di input.",
+                "user_message": "Feature extraction failed: check filters and input datasets.",
                 "elapsed_s": round(time.perf_counter() - started_at, 3),
             },
         }
 
 
 if __name__ == "__main__":
+    from multiagent_pipeline.tools.data_tools import load_last_perimeter
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s | %(levelname)s | %(message)s",
     )
-    out = run_feature_agent({"perimeter": {"anno": 2024}})
-    print("\n=== RISULTATO FeatureAgent ===")
+    _perimeter = load_last_perimeter() or {"anno": 2024}
+    print(f"  Perimeter: {_perimeter}")
+    out = run_feature_agent({"perimeter": _perimeter})
+    print("\n=== FeatureAgent RESULT ===")
     print("df_features shape:", out["df_features"].shape)
-    print("n_features numeriche:", len(out["feature_meta"]["feature_cols"]))
+    print("n_numeric_features:", len(out["feature_meta"]["feature_cols"]))
     print("quality:", out["feature_meta"]["quality"])

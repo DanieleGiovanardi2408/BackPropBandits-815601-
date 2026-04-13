@@ -3,8 +3,8 @@
   "n_alta": 17,
   "n_media": 40,
   "n_normale": 510,
-  "alta_threshold": 0.3579,
-  "media_threshold": 0.2897,
+  "alta_threshold": 0.3509,
+  "media_threshold": 0.2704,
   "threshold_method": "data-driven (p97/p90)",
   "ensemble_weights": {
     "IF": 0.35,
@@ -24,64 +24,64 @@
       "rank": 2,
       "rotta": "RAK-CIA",
       "label": "ALTA",
-      "score": 0.5253,
+      "score": 0.4793,
       "paese": "Marocco"
     },
     {
       "rank": 3,
-      "rotta": "GYD-FCO",
+      "rotta": "HRG-NAP",
       "label": "ALTA",
-      "score": 0.4608,
-      "paese": "Azerbaigian"
+      "score": 0.4483,
+      "paese": "Egitto"
     },
     {
       "rank": 4,
-      "rotta": "CMN-BLQ",
+      "rotta": "RAK-TSF",
       "label": "ALTA",
-      "score": 0.4583,
+      "score": 0.4475,
       "paese": "Marocco"
     },
     {
       "rank": 5,
-      "rotta": "RAK-TSF",
+      "rotta": "CMN-BLQ",
       "label": "ALTA",
-      "score": 0.456,
+      "score": 0.4424,
       "paese": "Marocco"
     },
     {
       "rank": 6,
-      "rotta": "PVG-MXP",
-      "label": "ALTA",
-      "score": 0.4294,
-      "paese": "Cina"
-    },
-    {
-      "rank": 7,
-      "rotta": "CAN-FCO",
-      "label": "ALTA",
-      "score": 0.4255,
-      "paese": "Cina"
-    },
-    {
-      "rank": 8,
-      "rotta": "AMM-FCO",
-      "label": "ALTA",
-      "score": 0.4072,
-      "paese": "Giordania"
-    },
-    {
-      "rank": 9,
       "rotta": "KIV-FCO",
       "label": "ALTA",
-      "score": 0.4055,
+      "score": 0.4278,
       "paese": "Moldavia"
     },
     {
-      "rank": 10,
-      "rotta": "RUH-VCE",
+      "rank": 7,
+      "rotta": "RMO-MXP",
       "label": "ALTA",
-      "score": 0.3985,
-      "paese": "Arabia Saudita"
+      "score": 0.4242,
+      "paese": "Moldavia"
+    },
+    {
+      "rank": 8,
+      "rotta": "SIN-MXP",
+      "label": "ALTA",
+      "score": 0.4143,
+      "paese": "Singapore"
+    },
+    {
+      "rank": 9,
+      "rotta": "TUN-BLQ",
+      "label": "ALTA",
+      "score": 0.4043,
+      "paese": "Tunisia"
+    },
+    {
+      "rank": 10,
+      "rotta": "PEW-MXP",
+      "label": "ALTA",
+      "score": 0.3937,
+      "paese": "Pakistan"
     }
   ]
 }

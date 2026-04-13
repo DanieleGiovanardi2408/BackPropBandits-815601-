@@ -1,12 +1,12 @@
-"""BaselineAgent — terzo nodo del grafo multi-agent.
+"""BaselineAgent — third node of the multi-agent graph.
 
-Responsabilità:
-    Calcola una baseline statistica robusta sulle feature per rotta
-    e produce z-score robusti + baseline_score per il nodo OutlierAgent.
+Responsibilities:
+    Computes a robust statistical baseline on per-route features
+    and produces robust z-scores + baseline_score for the OutlierAgent node.
 """
 from __future__ import annotations
 
-# ── Bootstrap per esecuzione diretta ─────────────────────────────────────────
+# ── Bootstrap for direct execution ───────────────────────────────────────────
 if __package__ in (None, ""):
     import sys
     from pathlib import Path as _P
@@ -27,7 +27,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _robust_zscore(series: pd.Series) -> tuple[pd.Series, float, float]:
-    """Ritorna robust z-score usando mediana e MAD."""
+    """Returns robust z-score using median and MAD."""
     s = pd.to_numeric(series, errors="coerce").fillna(0.0)
     median = float(s.median())
     mad = float((s - median).abs().median())
@@ -42,21 +42,21 @@ def run_baseline_agent(
     save_output: bool = False,
     output_path: Path | str | None = None,
 ) -> AgentState:
-    """Calcola baseline robusta su `state['df_features']`."""
-    logger.info("BaselineAgent ── Avvio")
+    """Computes robust baseline on `state['df_features']`."""
+    logger.info("BaselineAgent ── Starting")
     started_at = time.perf_counter()
 
     try:
         df_features = state.get("df_features")
         if df_features is None or not isinstance(df_features, pd.DataFrame):
-            raise ValueError("df_features mancante: esegui prima FeatureAgent.")
+            raise ValueError("df_features missing: run FeatureAgent first.")
         if df_features.empty:
-            raise ValueError("df_features vuoto: impossibile calcolare baseline.")
+            raise ValueError("df_features is empty: cannot compute baseline.")
 
         feature_cols = [c for c in BASELINE_FEATURES if c in df_features.columns]
         missing_cols = [c for c in BASELINE_FEATURES if c not in df_features.columns]
         if not feature_cols:
-            raise ValueError("Nessuna BASELINE_FEATURE disponibile in df_features.")
+            raise ValueError("No BASELINE_FEATURE available in df_features.")
 
         df_baseline = df_features.copy()
         stats = {}
@@ -69,7 +69,7 @@ def run_baseline_agent(
             z_cols.append(z_col)
             stats[col] = {"median": round(med, 6), "mad": round(mad, 6)}
 
-        # score baseline: media dell'ampiezza degli scostamenti robusti
+        # Baseline score: mean of the absolute robust deviations
         df_baseline["baseline_score"] = df_baseline[z_cols].abs().mean(axis=1)
         soglia_media = float(df_baseline["baseline_score"].quantile(0.90))
         soglia_alta = float(df_baseline["baseline_score"].quantile(0.97))
@@ -87,7 +87,7 @@ def run_baseline_agent(
             out_path.parent.mkdir(parents=True, exist_ok=True)
             df_baseline.to_csv(out_path, index=False)
             saved_to = str(out_path)
-            logger.info("BaselineAgent output salvato in: %s", saved_to)
+            logger.info("BaselineAgent output saved to: %s", saved_to)
 
         baseline_meta = {
             "n_features_baseline": len(feature_cols),
@@ -104,7 +104,7 @@ def run_baseline_agent(
         }
 
         logger.info(
-            "BaselineAgent ✓ Completato — rotte=%d, features=%d",
+            "BaselineAgent ✓ Completed — routes=%d, features=%d",
             len(df_baseline),
             len(feature_cols),
         )
@@ -114,13 +114,13 @@ def run_baseline_agent(
             "baseline_meta": baseline_meta,
         }
     except Exception as e:
-        logger.error("BaselineAgent ✗ Errore: %s", e)
+        logger.error("BaselineAgent ✗ Error: %s", e)
         return {
             **state,
             "df_baseline": None,
             "baseline_meta": {
                 "error": str(e),
-                "user_message": "Baseline non calcolabile: verifica che le feature siano presenti e valide.",
+                "user_message": "Baseline could not be computed: check that features are present and valid.",
                 "elapsed_s": round(time.perf_counter() - started_at, 3),
             },
         }
@@ -128,15 +128,18 @@ def run_baseline_agent(
 
 if __name__ == "__main__":
     from multiagent_pipeline.agents.feature_agent import run_feature_agent
+    from multiagent_pipeline.tools.data_tools import load_last_perimeter
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
-    state_in: AgentState = {"perimeter": {"anno": 2024}}
+    _perimeter = load_last_perimeter() or {"anno": 2024}
+    print(f"  Perimeter: {_perimeter}")
+    state_in: AgentState = {"perimeter": _perimeter}
     with_features = run_feature_agent(state_in)
     out = run_baseline_agent(with_features)
 
-    print("\n=== RISULTATO BaselineAgent ===")
+    print("\n=== BaselineAgent RESULT ===")
     if out["baseline_meta"].get("error"):
-        print("ERRORE:", out["baseline_meta"]["error"])
+        print("ERROR:", out["baseline_meta"]["error"])
     else:
         print("df_baseline shape:", out["df_baseline"].shape)
         print("n_features_baseline:", out["baseline_meta"]["n_features_baseline"])

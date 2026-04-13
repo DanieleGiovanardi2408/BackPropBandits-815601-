@@ -10,107 +10,107 @@
   "n_anomalies_ml": 57,
   "n_routes_alert_final": 57,
   "alert_rate_pct": 10.05,
-  "silhouette_score": -0.0114,
-  "davies_bouldin_index": 10.944,
-  "calinski_harabasz": 1.5,
-  "bootstrap_stable_routes": 46,
-  "ml_bootstrap_consistency": 0.614,
+  "silhouette_score": -0.0092,
+  "davies_bouldin_index": 11.428,
+  "calinski_harabasz": 1.3,
+  "bootstrap_stable_routes": 47,
+  "ml_bootstrap_consistency": 0.6316,
   "top_shap_feature": "tot_allarmi_log",
-  "top_shap_importance": 0.0538,
-  "top_permutation_feature": "tasso_rilevanza",
-  "top_permutation_importance": 0.381,
+  "top_shap_importance": 0.0546,
+  "top_permutation_feature": "tasso_inv_medio",
+  "top_permutation_importance": 0.3946,
   "nd_routes_fixed": 200,
   "shap_method": "Permutation Attribution (fallback)",
   "feature_importance_ranking": [
     {
-      "feature": "tasso_rilevanza",
-      "importance": 0.380952380952381
-    },
-    {
       "feature": "tasso_inv_medio",
-      "importance": 0.350595238095238
+      "importance": 0.3946428571428572
     },
     {
-      "feature": "tasso_respinti",
-      "importance": 0.3095238095238095
+      "feature": "tasso_rilevanza",
+      "importance": 0.3583333333333333
     },
     {
       "feature": "score_rischio_esiti",
-      "importance": 0.30416666666666664
+      "importance": 0.35416666666666663
     },
     {
-      "feature": "pct_sdi",
-      "importance": 0.2797619047619048
-    },
-    {
-      "feature": "tasso_chiusura",
-      "importance": 0.27976190476190477
+      "feature": "tasso_respinti",
+      "importance": 0.34761904761904755
     },
     {
       "feature": "tasso_allarme_medio",
-      "importance": 0.2589285714285714
+      "importance": 0.2976190476190476
+    },
+    {
+      "feature": "tasso_chiusura",
+      "importance": 0.2851190476190476
+    },
+    {
+      "feature": "pct_sdi",
+      "importance": 0.2767857142857143
     },
     {
       "feature": "tasso_fermati",
-      "importance": 0.2464285714285714
+      "importance": 0.2589285714285714
     },
     {
       "feature": "pct_nsis",
-      "importance": 0.20000000000000004
+      "importance": 0.2101190476190476
     },
     {
       "feature": "pct_interpol",
-      "importance": 0.19464285714285715
+      "importance": 0.20059523809523808
     },
     {
       "feature": "tot_allarmi_log",
-      "importance": 0.1392857142857143
+      "importance": 0.14880952380952384
     }
   ],
   "shap_importance_ranking": [
     {
       "feature": "tot_allarmi_log",
-      "shap_mean": 0.053760382314152734
-    },
-    {
-      "feature": "score_rischio_esiti",
-      "shap_mean": 0.04755401894828194
-    },
-    {
-      "feature": "pct_interpol",
-      "shap_mean": 0.04735711511236027
-    },
-    {
-      "feature": "tasso_allarme_medio",
-      "shap_mean": 0.04362966110589099
+      "shap_mean": 0.05461393493190007
     },
     {
       "feature": "pct_sdi",
-      "shap_mean": 0.036402452418485595
+      "shap_mean": 0.036823153897212885
+    },
+    {
+      "feature": "score_rischio_esiti",
+      "shap_mean": 0.03600699598920836
+    },
+    {
+      "feature": "pct_interpol",
+      "shap_mean": 0.030650144579912535
     },
     {
       "feature": "tasso_inv_medio",
-      "shap_mean": 0.025702539463182336
+      "shap_mean": 0.027638525030301557
+    },
+    {
+      "feature": "tasso_allarme_medio",
+      "shap_mean": 0.026664472267421226
     },
     {
       "feature": "tasso_fermati",
-      "shap_mean": 0.019892853249162085
+      "shap_mean": 0.024337823750874836
     },
     {
       "feature": "tasso_respinti",
-      "shap_mean": 0.013823639800558634
+      "shap_mean": 0.022598293784035894
     },
     {
       "feature": "pct_nsis",
-      "shap_mean": 0.012491662852473032
+      "shap_mean": 0.014208418934971474
     },
     {
       "feature": "tasso_chiusura",
-      "shap_mean": 0.005046496591884846
+      "shap_mean": 0.006491429683248513
     },
     {
       "feature": "tasso_rilevanza",
-      "shap_mean": 0.0015206876733523445
+      "shap_mean": 0.0021803257562939215
     }
   ]
 }

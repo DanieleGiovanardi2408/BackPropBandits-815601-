@@ -137,9 +137,11 @@ ENSEMBLE_WEIGHTS = {
     "AE":  0.20,   # Autoencoder
 }
 
-# Soglie risk label — stesse del classico (anomaly_summary.json)
-THRESHOLD_ALTA  = 0.3579   # p97
-THRESHOLD_MEDIA = 0.2897   # p90
+# Soglie risk label di RIFERIMENTO dalla pipeline classica (anomaly_summary.json).
+# Il multi-agent le ricalcola data-driven (p97/p90) a runtime in OutlierAgent,
+# quindi questi valori servono solo come documentazione del classico.
+THRESHOLD_ALTA_CLASSICAL  = 0.3579   # p97 classico
+THRESHOLD_MEDIA_CLASSICAL = 0.2897   # p90 classico
 
 # Feature usate per z-score baseline — stesse del classico (baseline_stats.json)
 BASELINE_FEATURES = [

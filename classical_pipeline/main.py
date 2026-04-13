@@ -49,7 +49,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PROC_DIR = ROOT / "data" / "processed"
 sys.path.insert(0, str(ROOT))
 
-from classical_pipeline.preprocessing import run_preprocessing
+from shared.preprocessing import run_preprocessing
 from multiagent_pipeline.src.features import FeatureBuilder
 
 warnings.filterwarnings("ignore")

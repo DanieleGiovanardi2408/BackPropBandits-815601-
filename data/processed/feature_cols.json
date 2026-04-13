@@ -3,8 +3,6 @@
     "n_osservazioni_allarmi",
     "tot_allarmi_sum",
     "tot_allarmi_log",
-    "unknown_occ",
-    "allarmati_occ",
     "allarmi_chiusi",
     "allarmi_chiusi_azione",
     "allarmi_non_chiusi",
@@ -20,7 +18,6 @@
     "inammissib_schengen",
     "mancato_agg_sdi",
     "mancato_agg_nsis",
-    "nc_occ",
     "notifica_atti",
     "np_int",
     "np_nsis",
@@ -40,6 +37,7 @@
     "pct_manuale",
     "tasso_chiusura",
     "tasso_rilevanza",
+    "false_positive_rate",
     "tot_entrati",
     "tot_allarmati",
     "tot_investigati",
@@ -53,10 +51,11 @@
     "n_segnalati",
     "tasso_respinti",
     "tasso_fermati",
-    "score_rischio_esiti"
+    "score_rischio_esiti",
+    "alarm_per_invest"
   ],
   "target": "score_composito",
   "n_routes": 567,
-  "n_features": 54,
+  "n_features": 53,
   "description": "Feature aggregate per ROTTA \u2014 pipeline classica"
 }

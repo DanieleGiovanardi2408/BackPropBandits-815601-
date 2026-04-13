@@ -1,8 +1,8 @@
-"""ReportAgent — quinto nodo del grafo multi-agent.
+"""ReportAgent — fifth node of the multi-agent graph.
 
-Responsabilità:
-    Usa un LLM reale per spiegare in linguaggio naturale le rotte anomale
-    (ALTA/MEDIA) e costruire il report finale JSON.
+Responsibilities:
+    Uses a real LLM to explain anomalous routes (ALTA/MEDIA) in natural
+    language and build the final JSON report.
 """
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 def format_route_for_llm(row: dict) -> str:
     """Tool 1 — format_route_for_llm(row)
 
-    Prepara il contesto sintetico di una rotta per il prompt LLM.
+    Prepares the synthetic context of a route for the LLM prompt.
     """
     return (
         f"ROTTA={row.get('ROTTA', 'ND')}; "
@@ -44,13 +44,13 @@ def format_route_for_llm(row: dict) -> str:
 def generate_explanation(context: str, llm: ChatAnthropic) -> str:
     """Tool 2 — generate_explanation(context)
 
-    Genera spiegazione narrativa della rotta anomala usando LLM reale.
+    Generates a narrative explanation of the anomalous route using a real LLM.
     """
     prompt = (
-        "Sei un analista rischio aeroportuale. "
-        "Spiega in massimo 3 frasi perche la rotta puo essere considerata anomala, "
-        "citando score e livello di rischio, senza inventare dati.\n\n"
-        f"Contesto:\n{context}"
+        "You are an airport risk analyst. "
+        "Explain in at most 3 sentences why the route can be considered anomalous, "
+        "citing the score and risk level, without inventing data.\n\n"
+        f"Context:\n{context}"
     )
     response = llm.invoke(prompt)
     return response.content.strip()
@@ -59,16 +59,16 @@ def generate_explanation(context: str, llm: ChatAnthropic) -> str:
 def build_final_report(findings: list[dict], perimeter: dict, anomaly_meta: dict, n_tot: int) -> dict:
     """Tool 3 — build_final_report(findings)
 
-    Costruisce il JSON finale del report con spiegazioni testuali.
+    Builds the final JSON report with textual explanations.
     """
     n_alta = int(anomaly_meta.get("n_alta", 0))
     n_media = int(anomaly_meta.get("n_media", 0))
     n_normale = int(anomaly_meta.get("n_normale", 0))
-    scope = ", ".join([f"{k}={v}" for k, v in perimeter.items()]) if perimeter else "nessun filtro"
+    scope = ", ".join([f"{k}={v}" for k, v in perimeter.items()]) if perimeter else "no filter"
     summary = (
-        f"Analisi completata su {n_tot} rotte ({scope}). "
-        f"Distribuzione rischio: ALTA={n_alta}, MEDIA={n_media}, NORMALE={n_normale}. "
-        f"Sono state prodotte spiegazioni LLM per {len(findings)} rotte ALTA/MEDIA."
+        f"Analysis completed on {n_tot} routes ({scope}). "
+        f"Risk distribution: ALTA={n_alta}, MEDIA={n_media}, NORMALE={n_normale}. "
+        f"LLM explanations were generated for {len(findings)} ALTA/MEDIA routes."
     )
     return {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -91,21 +91,21 @@ def run_report_agent(
     use_llm: bool = True,
     dry_run: bool = False,
 ) -> AgentState:
-    """Genera report finale JSON usando LLM e output OutlierAgent."""
-    logger.info("ReportAgent -- Avvio")
+    """Generates the final JSON report using LLM and OutlierAgent output."""
+    logger.info("ReportAgent -- Starting")
 
     try:
         if use_llm and not dry_run and not get_anthropic_api_key():
-            raise ValueError("ANTHROPIC_API_KEY non impostata: impossibile usare il ReportAgent LLM.")
+            raise ValueError("ANTHROPIC_API_KEY not set: cannot use the LLM ReportAgent.")
 
         df = state.get("df_anomalies")
         a_meta = state.get("anomaly_meta") or {}
         if a_meta.get("error"):
-            raise ValueError(f"anomaly_meta contiene errore: {a_meta['error']}")
+            raise ValueError(f"anomaly_meta contains error: {a_meta['error']}")
         if df is None or not isinstance(df, pd.DataFrame):
-            raise ValueError("df_anomalies mancante: esegui prima OutlierAgent.")
+            raise ValueError("df_anomalies missing: run OutlierAgent first.")
         if df.empty:
-            raise ValueError("df_anomalies vuoto: impossibile generare report.")
+            raise ValueError("df_anomalies is empty: cannot generate report.")
 
         perimeter = state.get("perimeter") or {}
         n_tot = int(len(df))
@@ -117,10 +117,10 @@ def run_report_agent(
                 model_name = get_anthropic_model()
                 llm = ChatAnthropic(model=model_name, temperature=0)
             except Exception as e:
-                llm_warning = f"LLM init fallita ({e}); uso fallback deterministico."
+                llm_warning = f"LLM init failed ({e}); using deterministic fallback."
                 logger.warning("ReportAgent -- %s", llm_warning)
 
-        # Rotte da spiegare: tutte le ALTA/MEDIA, ordinate per score decrescente.
+        # Routes to explain: all ALTA/MEDIA, sorted by descending score.
         explain_df = (
             df[df["risk_label"].isin(["ALTA", "MEDIA"])]
             .sort_values("ensemble_score", ascending=False)
@@ -134,18 +134,18 @@ def run_report_agent(
             context = format_route_for_llm(row)
             if llm is None:
                 explanation = (
-                    "Spiegazione LLM non eseguita (modalita dry_run/use_llm=False). "
-                    "Verifica score e trend nel frontend."
+                    "LLM explanation not executed (dry_run/use_llm=False mode). "
+                    "Check score and trends in the frontend."
                 )
             else:
                 try:
                     explanation = generate_explanation(context, llm)
                 except Exception as e:
-                    llm_warning = f"Chiamata LLM fallita ({e}); fallback locale attivato."
+                    llm_warning = f"LLM call failed ({e}); local fallback activated."
                     logger.warning("ReportAgent -- %s", llm_warning)
                     explanation = (
-                        "Spiegazione LLM non disponibile per errore di connessione/API. "
-                        "Analizzare la rotta tramite ensemble_score, baseline_score e risk_label."
+                        "LLM explanation unavailable due to connection/API error. "
+                        "Analyse the route using ensemble_score, baseline_score and risk_label."
                     )
             findings.append({**row, "explanation": explanation})
 
@@ -165,19 +165,19 @@ def run_report_agent(
             out_path.parent.mkdir(parents=True, exist_ok=True)
             out_path.write_text(json.dumps(report, indent=2, ensure_ascii=False))
             report_path = str(out_path)
-            logger.info("ReportAgent output salvato in: %s", report_path)
+            logger.info("ReportAgent output saved to: %s", report_path)
 
-        logger.info("ReportAgent ✓ Completato — rotte=%d, spiegazioni=%d", n_tot, len(findings))
+        logger.info("ReportAgent ✓ Completed — routes=%d, explanations=%d", n_tot, len(findings))
         return {
             **state,
             "report": report,
             "report_path": report_path,
         }
     except Exception as e:
-        logger.error("ReportAgent ✗ Errore: %s", e)
+        logger.error("ReportAgent ✗ Error: %s", e)
         return {
             **state,
-            "report": {"error": str(e), "user_message": "Errore generazione report: verifica configurazione e input."},
+            "report": {"error": str(e), "user_message": "Report generation error: check configuration and inputs."},
             "report_path": None,
         }
 
@@ -195,6 +195,6 @@ if __name__ == "__main__":
     s = run_baseline_agent(s)
     s = run_outlier_agent(s)
     s = run_report_agent(s)
-    print("\n=== RISULTATO ReportAgent ===")
+    print("\n=== ReportAgent RESULT ===")
     print(s["report_path"])
     print((s["report"] or {}).get("summary"))

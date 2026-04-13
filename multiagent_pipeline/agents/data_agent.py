@@ -3,26 +3,26 @@ data_agent.py
 ─────────────
 Agent 1 — DataAgent
 
-Responsabilità:
-    Carica il dataset merged già pulito dal preprocessing, applica i filtri
-    definiti dall'utente (anno, aeroporto, paese, zona) e restituisce il
-    DataFrame filtrato con le sue statistiche nello stato condiviso.
+Responsibilities:
+    Loads the already-cleaned merged dataset from preprocessing, applies the
+    user-defined filters (year, airport, country, zone) and returns the
+    filtered DataFrame with its statistics in the shared state.
 
-Architettura:
-    Agente DETERMINISTICO — non usa un LLM.
-    Esegue sempre gli stessi 3 tool in sequenza. Questa è una scelta
-    deliberata: il DataAgent sa esattamente cosa fare, un LLM sarebbe
-    spreco di risorse e latenza.
+Architecture:
+    DETERMINISTIC agent — does not use an LLM.
+    Always executes the same 3 tools in sequence. This is a deliberate
+    choice: the DataAgent knows exactly what to do; an LLM would be a
+    waste of resources and latency.
 
     load_dataset → filter_by_perimeter → get_dataset_stats
 
-Input  (da AgentState): state["perimeter"]
-Output (su AgentState): state["df_raw"], state["df_allarmi"],
-                        state["df_viaggiatori"], state["data_meta"]
+Input  (from AgentState): state["perimeter"]
+Output (to AgentState):   state["df_raw"], state["df_allarmi"],
+                          state["df_viaggiatori"], state["data_meta"]
 """
 
-# ── Bootstrap per esecuzione diretta (python data_agent.py) ──────────────────
-# Permette di lanciare il file sia come modulo (-m) sia come script (▶ VSCode).
+# ── Bootstrap for direct execution (python data_agent.py) ────────────────────
+# Allows running the file both as a module (-m) and as a script (▶ VSCode).
 if __package__ in (None, ""):
     import sys
     from pathlib import Path as _P
@@ -35,19 +35,17 @@ import pandas as pd
 from pathlib import Path
 from typing import Optional
 
-from langchain_core.tools import tool
-
 from multiagent_pipeline.state import AgentState, Perimeter, PATHS
 
 logger = logging.getLogger(__name__)
 
-# Risolvi i path del dataset rispetto alla root del progetto, cosi' funziona
-# da qualsiasi cwd (terminale, "Run File" di VSCode, debugger, ecc.)
+# Resolve dataset paths relative to the project root, so it works
+# from any cwd (terminal, VSCode "Run File", debugger, etc.)
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PATHS = {k: str(_PROJECT_ROOT / v) if not Path(v).is_absolute() else v
          for k, v in PATHS.items()}
 
-# Output del DataAgent (artefatti per audit + handoff cross-process al FeatureAgent)
+# DataAgent outputs (artefacts for audit + cross-process handoff to FeatureAgent)
 DATA_AGENT_OUTPUT_JSON       = _PROJECT_ROOT / "data" / "processed" / "data_agent_output.json"
 DATA_AGENT_OUTPUT_CSV        = _PROJECT_ROOT / "data" / "processed" / "data_agent_filtered.csv"
 DATA_AGENT_ALLARMI_CSV       = _PROJECT_ROOT / "data" / "processed" / "data_agent_allarmi.csv"
@@ -58,31 +56,29 @@ DATA_AGENT_VIAGGIATORI_CSV   = _PROJECT_ROOT / "data" / "processed" / "data_agen
 # TOOL 1 — load_dataset
 # ══════════════════════════════════════════════════════════════════════════════
 
-@tool
 def load_dataset(path: str) -> str:
     """
-    Carica il dataset dei transiti aeroportuali da un file CSV.
-    Restituisce i dati in formato JSON (orient=records).
-    Usare sempre come primo step prima di applicare filtri.
+    Loads the airport transit dataset from a CSV file.
+    Returns the data in JSON format (orient=records).
+    Always use as the first step before applying filters.
     """
     try:
         p = Path(path)
         if not p.exists():
-            return json.dumps({"error": f"File non trovato: {path}"})
+            return json.dumps({"error": f"File not found: {path}"})
 
         df = pd.read_csv(p)
-        logger.info("[load_dataset] Caricato '%s': %d righe × %d colonne", p.name, df.shape[0], df.shape[1])
+        logger.info("[load_dataset] Loaded '%s': %d rows × %d columns", p.name, df.shape[0], df.shape[1])
         return df.to_json(orient="records", date_format="iso")
 
     except Exception as e:
-        return json.dumps({"error": f"Errore durante il caricamento: {str(e)}"})
+        return json.dumps({"error": f"Error during loading: {str(e)}"})
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TOOL 2 — filter_by_perimeter
 # ══════════════════════════════════════════════════════════════════════════════
 
-@tool
 def filter_by_perimeter(
     data_json: str,
     anno: Optional[int] = None,
@@ -92,79 +88,78 @@ def filter_by_perimeter(
     zona: Optional[int] = None,
 ) -> str:
     """
-    Filtra il dataset per il perimetro di analisi definito dall'utente.
-    Applica solo i filtri i cui parametri non sono None.
-    Tutti i confronti su stringhe sono case-insensitive.
-    Restituisce il dataset filtrato in formato JSON (orient=records).
+    Filters the dataset by the user-defined analysis perimeter.
+    Only applies filters whose parameters are not None.
+    All string comparisons are case-insensitive.
+    Returns the filtered dataset in JSON format (orient=records).
     """
     try:
         parsed = json.loads(data_json)
         if isinstance(parsed, dict) and "error" in parsed:
-            return data_json  # propaga errore precedente
+            return data_json  # propagate previous error
 
         df = pd.DataFrame(parsed)
-        filtri_applicati = []
+        applied_filters = []
 
         if anno is not None:
             df = df[df["ANNO_PARTENZA"] == anno]
-            filtri_applicati.append(f"anno={anno}")
+            applied_filters.append(f"anno={anno}")
 
         if aeroporto_arrivo is not None:
             df = df[df["AREOPORTO_ARRIVO"].str.upper() == aeroporto_arrivo.upper()]
-            filtri_applicati.append(f"aeroporto_arrivo={aeroporto_arrivo}")
+            applied_filters.append(f"aeroporto_arrivo={aeroporto_arrivo}")
 
         if aeroporto_partenza is not None:
             df = df[df["AREOPORTO_PARTENZA"].str.upper() == aeroporto_partenza.upper()]
-            filtri_applicati.append(f"aeroporto_partenza={aeroporto_partenza}")
+            applied_filters.append(f"aeroporto_partenza={aeroporto_partenza}")
 
         if paese_partenza is not None:
             df = df[df["PAESE_PART"].str.upper() == paese_partenza.upper()]
-            filtri_applicati.append(f"paese_partenza={paese_partenza}")
+            applied_filters.append(f"paese_partenza={paese_partenza}")
 
         if zona is not None:
             df = df[df["ZONA"] == zona]
-            filtri_applicati.append(f"zona={zona}")
+            applied_filters.append(f"zona={zona}")
 
         if df.empty:
             return json.dumps({
-                "error": f"Nessun dato trovato con i filtri: {', '.join(filtri_applicati)}"
+                "error": f"No data found with filters: {', '.join(applied_filters)}"
             })
 
-        label = ', '.join(filtri_applicati) if filtri_applicati else "nessuno"
-        logger.info("[filter_by_perimeter] Filtri applicati: %s -> %d righe rimaste", label, len(df))
+        label = ', '.join(applied_filters) if applied_filters else "none"
+        logger.info("[filter_by_perimeter] Applied filters: %s -> %d rows remaining", label, len(df))
         return df.to_json(orient="records", date_format="iso")
 
     except Exception as e:
-        return json.dumps({"error": f"Errore durante il filtraggio: {str(e)}"})
+        return json.dumps({"error": f"Error during filtering: {str(e)}"})
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TOOL 3 — get_dataset_stats
 # ══════════════════════════════════════════════════════════════════════════════
 
-@tool
 def get_dataset_stats(data_json: str) -> str:
     """
-    Calcola statistiche descrittive sul dataset filtrato.
-    Restituisce n_righe, n_rotte_uniche, anni_presenti,
-    paesi_partenza_top5 e n_con_allarmi (righe con TOT > 0).
-    Usare dopo filter_by_perimeter per ottenere una panoramica dei dati.
+    Computes descriptive statistics on the filtered dataset.
+    Returns n_righe, n_rotte_uniche, anni_presenti,
+    paesi_partenza_top5 and n_con_allarmi (rows with TOT > 0).
+    Use after filter_by_perimeter to get an overview of the data.
     """
     try:
         parsed = json.loads(data_json)
         if isinstance(parsed, dict) and "error" in parsed:
-            return data_json  # propaga errore precedente
+            return data_json  # propagate previous error
 
         df = pd.DataFrame(parsed)
 
-        # Costruisce colonna ROTTA se non presente
+        # Build ROTTA column if not present
         if "ROTTA" not in df.columns:
             df["ROTTA"] = (
                 df["AREOPORTO_PARTENZA"].str.upper() + "-" +
                 df["AREOPORTO_ARRIVO"].str.upper()
             )
 
-        # TOT numerico per contare gli allarmi
+        # Numeric TOT to count alarms
         tot = pd.to_numeric(df["TOT"], errors="coerce").fillna(0)
 
         stats = {
@@ -176,7 +171,7 @@ def get_dataset_stats(data_json: str) -> str:
         }
 
         logger.info(
-            "[get_dataset_stats] %d righe, %d rotte, %d con allarmi",
+            "[get_dataset_stats] %d rows, %d routes, %d with alarms",
             stats["n_righe"],
             stats["n_rotte_uniche"],
             stats["n_con_allarmi"],
@@ -184,71 +179,71 @@ def get_dataset_stats(data_json: str) -> str:
         return json.dumps(stats)
 
     except Exception as e:
-        return json.dumps({"error": f"Errore nel calcolo statistiche: {str(e)}"})
+        return json.dumps({"error": f"Error computing statistics: {str(e)}"})
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# FUNZIONE NODO LANGGRAPH
+# LANGGRAPH NODE FUNCTION
 # ══════════════════════════════════════════════════════════════════════════════
 
 def data_agent_node(state: AgentState, save_artifacts: bool = False) -> AgentState:
     """
-    Nodo LangGraph per il DataAgent.
+    LangGraph node for the DataAgent.
 
-    Legge state["perimeter"], esegue i tool in sequenza e scrive:
-      - state["df_raw"]          (dataset_merged filtrato)
-      - state["df_allarmi"]      (allarmi_clean filtrato)
-      - state["df_viaggiatori"]  (viaggiatori_clean filtrato)
-      - state["data_meta"]       (statistiche principali)
+    Reads state["perimeter"], executes the tools in sequence and writes:
+      - state["df_raw"]          (filtered dataset_merged)
+      - state["df_allarmi"]      (filtered allarmi_clean)
+      - state["df_viaggiatori"]  (filtered viaggiatori_clean)
+      - state["data_meta"]       (main statistics)
 
     Args:
-        save_artifacts: se True salva JSON/CSV di debug su data/processed.
+        save_artifacts: if True, saves debug JSON/CSV files to data/processed.
 
-    In caso di errore non lancia eccezioni: popola data_meta["error"]
-    e lascia df_raw = None, così il grafo può gestire il fallimento.
+    On error, does not raise exceptions: populates data_meta["error"]
+    and sets df_raw = None, so the graph can handle the failure.
     """
-    logger.info("DataAgent -- Avvio")
+    logger.info("DataAgent -- Starting")
 
     try:
-        # 1. Leggi e valida il perimetro
+        # 1. Read and validate the perimeter
         raw_perimeter = state.get("perimeter", {})
         perimeter = Perimeter(**raw_perimeter)
 
-        # 2. Carica i dataset (merged + clean separati)
-        merged_json = load_dataset.invoke({"path": PATHS["dataset_merged"]})
-        allarmi_json = load_dataset.invoke({"path": PATHS["allarmi_clean"]})
-        viaggiatori_json = load_dataset.invoke({"path": PATHS["viaggiatori_clean"]})
+        # 2. Load the datasets (merged + separate clean files)
+        merged_json = load_dataset(PATHS["dataset_merged"])
+        allarmi_json = load_dataset(PATHS["allarmi_clean"])
+        viaggiatori_json = load_dataset(PATHS["viaggiatori_clean"])
 
-        # 3. Applica i filtri su tutti i dataset
-        merged_json = filter_by_perimeter.invoke({
-            "data_json"         : merged_json,
-            "anno"              : perimeter.anno,
-            "aeroporto_arrivo"  : perimeter.aeroporto_arrivo,
-            "aeroporto_partenza": perimeter.aeroporto_partenza,
-            "paese_partenza"    : perimeter.paese_partenza,
-            "zona"              : perimeter.zona,
-        })
-        allarmi_json = filter_by_perimeter.invoke({
-            "data_json"         : allarmi_json,
-            "anno"              : perimeter.anno,
-            "aeroporto_arrivo"  : perimeter.aeroporto_arrivo,
-            "aeroporto_partenza": perimeter.aeroporto_partenza,
-            "paese_partenza"    : perimeter.paese_partenza,
-            "zona"              : perimeter.zona,
-        })
-        viaggiatori_json = filter_by_perimeter.invoke({
-            "data_json"         : viaggiatori_json,
-            "anno"              : perimeter.anno,
-            "aeroporto_arrivo"  : perimeter.aeroporto_arrivo,
-            "aeroporto_partenza": perimeter.aeroporto_partenza,
-            "paese_partenza"    : perimeter.paese_partenza,
-            "zona"              : perimeter.zona,
-        })
+        # 3. Apply filters to all datasets
+        merged_json = filter_by_perimeter(
+            data_json=merged_json,
+            anno=perimeter.anno,
+            aeroporto_arrivo=perimeter.aeroporto_arrivo,
+            aeroporto_partenza=perimeter.aeroporto_partenza,
+            paese_partenza=perimeter.paese_partenza,
+            zona=perimeter.zona,
+        )
+        allarmi_json = filter_by_perimeter(
+            data_json=allarmi_json,
+            anno=perimeter.anno,
+            aeroporto_arrivo=perimeter.aeroporto_arrivo,
+            aeroporto_partenza=perimeter.aeroporto_partenza,
+            paese_partenza=perimeter.paese_partenza,
+            zona=perimeter.zona,
+        )
+        viaggiatori_json = filter_by_perimeter(
+            data_json=viaggiatori_json,
+            anno=perimeter.anno,
+            aeroporto_arrivo=perimeter.aeroporto_arrivo,
+            aeroporto_partenza=perimeter.aeroporto_partenza,
+            paese_partenza=perimeter.paese_partenza,
+            zona=perimeter.zona,
+        )
 
-        # 4. Calcola statistiche
-        stats_json = get_dataset_stats.invoke({"data_json": merged_json})
+        # 4. Compute statistics
+        stats_json = get_dataset_stats(merged_json)
 
-        # 5. Controlla errori propagati
+        # 5. Check propagated errors
         stats = json.loads(stats_json)
         if "error" in stats:
             raise ValueError(stats["error"])
@@ -258,16 +253,14 @@ def data_agent_node(state: AgentState, save_artifacts: bool = False) -> AgentSta
             if isinstance(parsed, dict) and "error" in parsed:
                 raise ValueError(parsed["error"])
 
-        # 6. Deserializza DataFrame
+        # 6. Deserialize DataFrames
         df_raw = pd.DataFrame(json.loads(merged_json))
         df_allarmi = pd.DataFrame(json.loads(allarmi_json))
         df_viaggiatori = pd.DataFrame(json.loads(viaggiatori_json))
         stats["n_righe_allarmi"] = int(len(df_allarmi))
         stats["n_righe_viaggiatori"] = int(len(df_viaggiatori))
 
-        # 7. Salvataggio opzionale: 1 manifest JSON + 3 CSV filtrati
-        # (merged/allarmi/viaggiatori). Quando attivo abilita l'handoff
-        # cross-process al FeatureAgent, che legge l'artefatto se presente.
+        # 7. Save artefacts to disk (audit + cross-process handoff)
         if save_artifacts:
             DATA_AGENT_OUTPUT_JSON.parent.mkdir(parents=True, exist_ok=True)
             df_raw.to_csv(DATA_AGENT_OUTPUT_CSV, index=False)
@@ -286,7 +279,7 @@ def data_agent_node(state: AgentState, save_artifacts: bool = False) -> AgentSta
             logger.info("[save] %s + 3 csv (merged/allarmi/viaggiatori)", DATA_AGENT_OUTPUT_JSON.name)
 
         logger.info(
-            "DataAgent ✓ Completato — %d righe, %d rotte uniche",
+            "DataAgent ✓ Completed — %d rows, %d unique routes",
             stats["n_righe"],
             stats["n_rotte_uniche"],
         )
@@ -300,7 +293,7 @@ def data_agent_node(state: AgentState, save_artifacts: bool = False) -> AgentSta
         }
 
     except Exception as e:
-        logger.error("DataAgent ✗ Errore: %s", e)
+        logger.error("DataAgent ✗ Error: %s", e)
         return {
             **state,
             "df_raw"   : None,
@@ -311,69 +304,69 @@ def data_agent_node(state: AgentState, save_artifacts: bool = False) -> AgentSta
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TEST STANDALONE
+# STANDALONE TEST
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _pick_value(df, col: str, label: str, cast=str, top: int = 30):
-    """Mostra i valori unici della colonna e fa scegliere all'utente.
+    """Shows unique values for the column and lets the user pick one.
 
-    L'utente puo' scrivere il numero (dalla lista) o digitare direttamente il valore.
+    The user can type the number (from the list) or enter the value directly.
     """
     if col not in df.columns:
-        print(f"  ⚠ Colonna {col} non trovata, skip.")
+        print(f"  ⚠ Column {col} not found, skipping.")
         return None
 
     values = (
         df[col].dropna().value_counts().head(top).index.tolist()
     )
     if not values:
-        print(f"  ⚠ Nessun valore disponibile per {col}.")
+        print(f"  ⚠ No values available for {col}.")
         return None
 
-    print(f"\n  ── Valori disponibili per {label} (top {len(values)}) ──")
+    print(f"\n  ── Available values for {label} (top {len(values)}) ──")
     for i, v in enumerate(values, 1):
         n = int((df[col] == v).sum())
-        print(f"    {i:>3}. {v}  ({n} righe)")
-    raw = input(f"  Scegli (numero o valore esatto): ").strip()
+        print(f"    {i:>3}. {v}  ({n} rows)")
+    raw = input(f"  Choose (number or exact value): ").strip()
     if not raw:
         return None
 
-    # Numero della lista?
+    # Number from the list?
     if raw.isdigit() and 1 <= int(raw) <= len(values):
         return cast(values[int(raw) - 1])
 
-    # Valore digitato a mano
+    # Value typed manually
     try:
         return cast(raw)
     except Exception as e:
-        print(f"  ⚠ valore non valido: {e}")
+        print(f"  ⚠ invalid value: {e}")
         return None
 
 
 def _interactive_perimeter() -> dict:
-    """CLI interattiva: mostra i filtri disponibili e i valori reali del dataset."""
-    # Carica il dataset una sola volta per popolare i menu
+    """Interactive CLI: shows available filters and actual dataset values."""
+    # Load the dataset once to populate the menus
     try:
         df_preview = pd.read_csv(PATHS["dataset_merged"])
     except Exception as e:
-        print(f"  ⚠ Impossibile caricare dataset per anteprima: {e}")
+        print(f"  ⚠ Unable to load dataset for preview: {e}")
         df_preview = None
 
-    # (key, label, colonna_csv, cast)
+    # (key, label, csv_column, cast)
     fields = [
-        ("anno",               "Anno",                  "ANNO_PARTENZA",      int),
-        ("aeroporto_partenza", "Aeroporto di partenza", "AREOPORTO_PARTENZA", str),
-        ("aeroporto_arrivo",   "Aeroporto di arrivo",   "AREOPORTO_ARRIVO",   str),
-        ("paese_partenza",     "Paese di partenza",     "PAESE_PART",         str),
-        ("zona",               "Zona geografica",       "ZONA",               int),
+        ("anno",               "Year",                    "ANNO_PARTENZA",      int),
+        ("aeroporto_partenza", "Departure airport",       "AREOPORTO_PARTENZA", str),
+        ("aeroporto_arrivo",   "Arrival airport",         "AREOPORTO_ARRIVO",   str),
+        ("paese_partenza",     "Departure country",       "PAESE_PART",         str),
+        ("zona",               "Geographic zone",         "ZONA",               int),
     ]
 
-    print("\n── Filtri disponibili (perimetro) ────────────────────")
+    print("\n── Available filters (perimeter) ────────────────────")
     for i, (key, label, *_) in enumerate(fields, 1):
         print(f"  {i}. {key:20s} — {label}")
     print("──────────────────────────────────────────────────────")
 
-    raw = input("Quali filtri vuoi applicare? (numeri o nomi separati da virgola, vuoto = nessuno): ").strip()
+    raw = input("Which filters do you want to apply? (numbers or names separated by comma, empty = none): ").strip()
     if not raw:
         return {}
 
@@ -390,7 +383,7 @@ def _interactive_perimeter() -> dict:
         elif tok in keys:
             idx.append(keys.index(tok))
         else:
-            print(f"  ⚠ ignorato: '{tok}' (non e' un numero ne' un nome valido)")
+            print(f"  ⚠ ignored: '{tok}' (not a number or a valid name)")
 
     perimeter = {}
     for i in idx:
@@ -410,11 +403,11 @@ def _interactive_perimeter() -> dict:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
     print("=" * 55)
-    print("  DataAgent — modalità interattiva")
+    print("  DataAgent — interactive mode")
     print("=" * 55)
 
     perimeter = _interactive_perimeter()
-    print(f"\n  Perimetro selezionato: {perimeter or '(nessuno)'}")
+    print(f"\n  Selected perimeter: {perimeter or '(none)'}")
 
     stato_iniziale: AgentState = {
         "perimeter"    : perimeter,
@@ -434,17 +427,62 @@ if __name__ == "__main__":
 
     stato_finale = data_agent_node(stato_iniziale, save_artifacts=True)
 
-    print("── Risultato ─────────────────────────────────────────")
+    print("── Result ─────────────────────────────────────────")
     if stato_finale["data_meta"].get("error"):
-        print(f"  ERRORE: {stato_finale['data_meta']['error']}")
+        print(f"  ERROR: {stato_finale['data_meta']['error']}")
+        print("=" * 55)
     else:
         meta = stato_finale["data_meta"]
-        print(f"  Righe caricate:    {meta['n_righe']}")
-        print(f"  Rotte uniche:      {meta['n_rotte_uniche']}")
-        print(f"  Anni presenti:     {meta['anni_presenti']}")
-        print(f"  Top 5 paesi:       {meta['paesi_partenza_top5']}")
-        print(f"  Righe con allarmi: {meta['n_con_allarmi']}")
+        print(f"  Rows loaded:       {meta['n_righe']}")
+        print(f"  Unique routes:     {meta['n_rotte_uniche']}")
+        print(f"  Years present:     {meta['anni_presenti']}")
+        print(f"  Top 5 countries:   {meta['paesi_partenza_top5']}")
+        print(f"  Rows with alarms:  {meta['n_con_allarmi']}")
         print(f"  df_raw shape:      {stato_finale['df_raw'].shape}")
         print(f"  df_allarmi shape:  {stato_finale['df_allarmi'].shape}")
         print(f"  df_viag shape:     {stato_finale['df_viaggiatori'].shape}")
-    print("=" * 55)
+        print("=" * 55)
+
+        # ── Interactive chain ──────────────────────────────────
+        CHAIN = [
+            ("FeatureAgent",  "run_feature_agent",  "multiagent_pipeline.agents.feature_agent"),
+            ("BaselineAgent", "run_baseline_agent", "multiagent_pipeline.agents.baseline_agent"),
+            ("OutlierAgent",  "run_outlier_agent",  "multiagent_pipeline.agents.outlier_agent"),
+            ("ReportAgent",   "run_report_agent",   "multiagent_pipeline.agents.report_agent"),
+        ]
+
+        state = stato_finale
+        for agent_name, fn_name, module_path in CHAIN:
+            risposta = input(f"\nDo you want to run {agent_name}? [s/N] ").strip().lower()
+            if risposta not in ("s", "si", "sì", "y", "yes"):
+                print(f"  ↳ {agent_name} skipped. Done.")
+                break
+            import importlib
+            mod = importlib.import_module(module_path)
+            fn  = getattr(mod, fn_name)
+            print(f"\n── {agent_name} ──────────────────────────────────────")
+            state = fn(state)
+            # Print a brief result for each agent
+            if agent_name == "FeatureAgent":
+                fm = state.get("feature_meta") or {}
+                if "error" in fm:
+                    print(f"  ERROR: {fm['error']}")
+                    break
+                print(f"  df_features: {state['df_features'].shape} | quality: {fm.get('quality',{}).get('null_totali','?')} null")
+            elif agent_name == "BaselineAgent":
+                bm = state.get("baseline_meta") or {}
+                if "error" in bm:
+                    print(f"  ERROR: {bm['error']}")
+                    break
+                print(f"  df_baseline: {state['df_baseline'].shape} | soglia_alta={bm.get('soglia_alta')} | soglia_media={bm.get('soglia_media')}")
+            elif agent_name == "OutlierAgent":
+                am = state.get("anomaly_meta") or {}
+                if "error" in am:
+                    print(f"  ERROR: {am['error']}")
+                    break
+                print(f"  ALTA={am.get('n_alta')} | MEDIA={am.get('n_media')} | NORMALE={am.get('n_normale')}")
+            elif agent_name == "ReportAgent":
+                rp = state.get("report_path")
+                rs = (state.get("report") or {}).get("summary", "N/A")
+                print(f"  Report saved: {rp}")
+                print(f"  Summary: {rs}")

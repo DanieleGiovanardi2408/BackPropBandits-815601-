@@ -1,21 +1,21 @@
 """
 features.py
 ───────────
-Classi di feature engineering per la pipeline multi-agent.
+Feature engineering classes for the multi-agent pipeline.
 
-Ogni classe incapsula un gruppo logico di trasformazioni, specchiando
-esattamente i notebook della pipeline classica (02_feature_engineering.ipynb).
-Questo garantisce un confronto onesto: stessa logica, architettura diversa.
+Each class encapsulates a logical group of transformations, mirroring
+exactly the notebooks of the classical pipeline (02_feature_engineering.ipynb).
+This guarantees a fair comparison: same logic, different architecture.
 
-Classi:
-    OccurrencePivot         — pivot del tipo di OCCORRENZA per rotta
-    MotivoAllarmeFeatures   — percentuali per motivo allarme (INTERPOL, SDI…)
-    AllarmiAggregator       — metadati + feature derivate da ALLARMI
-    ViaggiatoriAggregator   — aggregazioni da TIPOLOGIA_VIAGGIATORE
-    EsitiPivot              — pivot di ESITO_CONTROLLO + tassi di rischio
-    FeatureBuilder          — orchestratore: combina tutte le classi sopra
+Classes:
+    OccurrencePivot         — pivot of OCCORRENZA type per route
+    MotivoAllarmeFeatures   — percentages per alarm reason (INTERPOL, SDI…)
+    AllarmiAggregator       — metadata + derived features from ALLARMI
+    ViaggiatoriAggregator   — aggregations from TIPOLOGIA_VIAGGIATORE
+    EsitiPivot              — pivot of ESITO_CONTROLLO + risk rates
+    FeatureBuilder          — orchestrator: combines all the above classes
 
-Uso:
+Usage:
     builder = FeatureBuilder()
     df_features = builder.build(df_allarmi, df_viaggiatori)
 """
@@ -33,18 +33,18 @@ from pathlib import Path
 # ══════════════════════════════════════════════════════════════════════════════
 
 def safe_div(a: pd.Series, b: pd.Series) -> np.ndarray:
-    """Divisione vettorizzata sicura: restituisce 0.0 dove b == 0."""
+    """Safe vectorized division: returns 0.0 where b == 0."""
     return np.where(b > 0, a / b, 0.0)
 
 
 def safe_mode(x: pd.Series):
-    """Moda di una serie; restituisce 'ND' se la serie è vuota."""
+    """Mode of a series; returns 'ND' if the series is empty."""
     m = x.mode()
     return m.iloc[0] if len(m) > 0 else "ND"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MAPPATURE (identiche al notebook classico)
+# MAPPINGS (identical to the classical notebook)
 # ══════════════════════════════════════════════════════════════════════════════
 
 RENAME_OCC = {
@@ -95,11 +95,11 @@ RENAME_ESITI = {
 
 class OccurrencePivot:
     """
-    Crea un pivot del dataset ALLARMI: una colonna per ogni tipo di
-    OCCORRENZA, con valore = somma di TOT per rotta.
+    Creates a pivot of the ALLARMI dataset: one column per OCCORRENZA type,
+    with value = sum of TOT per route.
 
-    Input:  df_allarmi con colonne [ROTTA, OCCORRENZE, TOT]
-    Output: DataFrame con ROTTA come indice e ~30 colonne numeriche
+    Input:  df_allarmi with columns [ROTTA, OCCORRENZE, TOT]
+    Output: DataFrame with ROTTA as index and ~30 numeric columns
     """
 
     def fit_transform(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -116,7 +116,7 @@ class OccurrencePivot:
         pivot.columns.name = None
         pivot = pivot.rename(columns=RENAME_OCC)
 
-        # Clip negativi (np_sdi e voli_non_investigati hanno TOT < 0 nel raw)
+        # Clip negatives (np_sdi and voli_non_investigati have TOT < 0 in the raw data)
         num_cols = pivot.select_dtypes(include="number").columns
         pivot[num_cols] = pivot[num_cols].clip(lower=0)
 
@@ -129,11 +129,11 @@ class OccurrencePivot:
 
 class MotivoAllarmeFeatures:
     """
-    Calcola le percentuali di allarme per motivo (INTERPOL, SDI, NSIS,
-    TSC, Manuale) per ogni rotta.
+    Computes alarm percentages by reason (INTERPOL, SDI, NSIS,
+    TSC, Manuale) for each route.
 
-    Input:  df_allarmi con colonne [ROTTA, MOTIVO_ALLARME]
-    Output: DataFrame con ROTTA + colonne pct_interpol, pct_sdi, pct_nsis,
+    Input:  df_allarmi with columns [ROTTA, MOTIVO_ALLARME]
+    Output: DataFrame with ROTTA + columns pct_interpol, pct_sdi, pct_nsis,
             pct_tsc, pct_manuale
     """
 
@@ -158,7 +158,7 @@ class MotivoAllarmeFeatures:
             else:
                 counts[col_pct] = 0.0
 
-        # Tieni solo ROTTA e le colonne pct_
+        # Keep only ROTTA and the pct_ columns
         pct_cols = [c for c in counts.columns if c.startswith("pct_") or c == "ROTTA"]
         return counts[pct_cols].fillna(0)
 
@@ -169,14 +169,14 @@ class MotivoAllarmeFeatures:
 
 class AllarmiAggregator:
     """
-    Aggrega il dataset ALLARMI per rotta, combinando:
-    - Metadati (ZONA, PAESE_PART, n_osservazioni)
+    Aggregates the ALLARMI dataset per route, combining:
+    - Metadata (ZONA, PAESE_PART, n_osservazioni)
     - OccurrencePivot
     - MotivoAllarmeFeatures
-    - Feature derivate: tasso_chiusura, tasso_rilevanza, tot_allarmi_log, false_positive_rate
+    - Derived features: tasso_chiusura, tasso_rilevanza, tot_allarmi_log, false_positive_rate
 
-    Input:  df_allarmi pulito da preprocessing.py
-    Output: DataFrame aggregato per ROTTA (una riga per rotta)
+    Input:  df_allarmi cleaned by preprocessing.py
+    Output: DataFrame aggregated per ROTTA (one row per route)
     """
 
     def __init__(self):
@@ -184,7 +184,7 @@ class AllarmiAggregator:
         self._motivo_feat  = MotivoAllarmeFeatures()
 
     def fit_transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        # 1. Metadati base
+        # 1. Base metadata
         meta = df.groupby("ROTTA").agg(
             ZONA                   = ("ZONA",       "first"),
             PAESE_PART             = ("PAESE_PART",  "first"),
@@ -192,10 +192,10 @@ class AllarmiAggregator:
             tot_allarmi_sum        = ("TOT",         "sum"),
         ).reset_index()
 
-        # Log-transform: distribuzione skewed (max ~103k)
+        # Log-transform: skewed distribution (max ~103k)
         meta["tot_allarmi_log"] = np.log1p(meta["tot_allarmi_sum"])
 
-        # 2. Pivot occorrenze + motivi
+        # 2. Occurrence pivot + alarm reasons
         occ   = self._occ_pivot.fit_transform(df)
         motiv = self._motivo_feat.fit_transform(df)
 
@@ -203,11 +203,11 @@ class AllarmiAggregator:
         agg = meta.merge(occ,   on="ROTTA", how="left")
         agg = agg.merge(motiv,  on="ROTTA", how="left")
 
-        # 4. Clip residui negativi dopo merge
+        # 4. Clip residual negatives after merge
         num_cols = agg.select_dtypes(include="number").columns
         agg[num_cols] = agg[num_cols].clip(lower=0)
 
-        # 5. Feature derivate
+        # 5. Derived features
         allarmi_chiusi = agg.get("allarmi_chiusi", pd.Series(0, index=agg.index))
         allarmi_non_chiusi = agg.get("allarmi_non_chiusi", pd.Series(0, index=agg.index))
         agg["tasso_chiusura"] = safe_div(
@@ -220,7 +220,7 @@ class AllarmiAggregator:
             agg.get("voli_con_allarmi",  pd.Series(0, index=agg.index))
         ).clip(0, 1)
 
-        # 6. false_positive_rate — integrata dal notebook del collega
+        # 6. false_positive_rate — integrated from colleague's notebook
         #    (np_sdi + np_nsis + np_int) / (allarmi_sdi + allarmi_interpol)
         numeratore_fp = (
             agg.get("np_sdi",               pd.Series(0, index=agg.index)) +
@@ -233,7 +233,7 @@ class AllarmiAggregator:
         )
         agg["false_positive_rate"] = safe_div(numeratore_fp, denominatore_fp).clip(0, 1)
 
-        # Fill NaN nelle pct_
+        # Fill NaN in pct_ columns
         pct_cols = [c for c in agg.columns if c.startswith("pct_")]
         agg[pct_cols] = agg[pct_cols].fillna(0)
 
@@ -246,10 +246,10 @@ class AllarmiAggregator:
 
 class EsitiPivot:
     """
-    Crea un pivot di ESITO_CONTROLLO per rotta e calcola i tassi di rischio.
+    Creates a pivot of ESITO_CONTROLLO per route and computes risk rates.
 
-    Input:  df_viaggiatori con colonne [ROTTA, ESITO_CONTROLLO, ENTRATI]
-    Output: DataFrame con ROTTA + n_segnalati, n_respinti, n_fermati,
+    Input:  df_viaggiatori with columns [ROTTA, ESITO_CONTROLLO, ENTRATI]
+    Output: DataFrame with ROTTA + n_segnalati, n_respinti, n_fermati,
             n_in_attesa, n_ok, tasso_respinti, tasso_fermati, score_rischio_esiti
     """
 
@@ -267,20 +267,20 @@ class EsitiPivot:
         pivot.columns.name = None
         pivot = pivot.rename(columns=RENAME_ESITI)
 
-        # Assicura colonne presenti anche se mancanti nel dataset
+        # Ensure columns are present even if missing from the dataset
         for col in ["n_segnalati", "n_in_attesa", "n_respinti", "n_fermati", "n_ok"]:
             if col not in pivot.columns:
                 pivot[col] = 0
             pivot[col] = pivot[col].fillna(0).astype(int)
 
-        # Tassi (su n_osservazioni se fornito, altrimenti su totale esiti)
+        # Rates (on n_osservazioni if provided, otherwise on total outcomes)
         totale = pivot[["n_segnalati", "n_in_attesa", "n_respinti", "n_fermati", "n_ok"]].sum(axis=1)
         denom  = n_osservazioni if n_osservazioni is not None else totale
 
         pivot["tasso_respinti"] = safe_div(pivot["n_respinti"], denom).clip(0, 1)
         pivot["tasso_fermati"]  = safe_div(pivot["n_fermati"],  denom).clip(0, 1)
 
-        # Score rischio esiti: respinto 60% + fermato 40%
+        # Risk score from outcomes: rejected 60% + detained 40%
         pivot["score_rischio_esiti"] = (
             pivot["tasso_respinti"] * 0.6 +
             pivot["tasso_fermati"]  * 0.4
@@ -295,21 +295,21 @@ class EsitiPivot:
 
 class ViaggiatoriAggregator:
     """
-    Aggrega il dataset TIPOLOGIA_VIAGGIATORE per rotta, combinando:
-    - Conteggi e tassi di allarme/investigazione
-    - Profilo demografico predominante
-    - EsitiPivot (con tassi di rischio)
-    - alarm_per_invest: tot_allarmati/tot_investigati, capped al p99
+    Aggregates the TIPOLOGIA_VIAGGIATORE dataset per route, combining:
+    - Alarm/investigation counts and rates
+    - Predominant demographic profile
+    - EsitiPivot (with risk rates)
+    - alarm_per_invest: tot_allarmati/tot_investigati, capped at p99
 
-    Input:  df_viaggiatori pulito da preprocessing.py
-    Output: DataFrame aggregato per ROTTA (una riga per rotta)
+    Input:  df_viaggiatori cleaned by preprocessing.py
+    Output: DataFrame aggregated per ROTTA (one row per route)
     """
 
     def __init__(self):
         self._esiti_pivot = EsitiPivot()
 
     def fit_transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        # 1. Aggregazioni base
+        # 1. Base aggregations
         agg = df.groupby("ROTTA").agg(
             tot_entrati             = ("ENTRATI",          "sum"),
             tot_allarmati           = ("ALLARMATI",         "sum"),
@@ -324,23 +324,23 @@ class ViaggiatoriAggregator:
             compagnia_top           = ("COMPAGNIA_AEREA",   safe_mode),
         ).reset_index()
 
-        # 2. Clip e cap
+        # 2. Clip and cap
         agg["tot_entrati"]         = agg["tot_entrati"].clip(lower=0)
         agg["tot_allarmati"]       = agg["tot_allarmati"].clip(lower=0)
         agg["tot_investigati"]     = agg["tot_investigati"].clip(lower=0)
         agg["tasso_allarme_medio"] = agg["tasso_allarme_medio"].clip(0, 1)
         agg["tasso_inv_medio"]     = agg["tasso_inv_medio"].clip(0, 1)
 
-        # alarm_per_invest — integrata dal notebook del collega
-        #   tot_allarmati / tot_investigati, capped al p99 per outlier estremi
+        # alarm_per_invest — integrated from colleague's notebook
+        #   tot_allarmati / tot_investigati, capped at p99 for extreme outliers
         agg["alarm_per_invest"] = safe_div(agg["tot_allarmati"], agg["tot_investigati"])
         cap_p99 = agg["alarm_per_invest"].quantile(0.99)
         agg["alarm_per_invest"] = agg["alarm_per_invest"].clip(upper=cap_p99)
 
-        # 3. Merge con esiti pivot
+        # 3. Merge with outcomes pivot
         esiti = self._esiti_pivot.fit_transform(df, n_osservazioni=None)
 
-        # Allinea n_osservazioni per i tassi
+        # Align n_osservazioni for rate computation
         esiti = esiti.merge(agg[["ROTTA", "n_osservazioni_viag"]], on="ROTTA", how="left")
         esiti["tasso_respinti"] = safe_div(esiti["n_respinti"], esiti["n_osservazioni_viag"]).clip(0, 1)
         esiti["tasso_fermati"]  = safe_div(esiti["n_fermati"],  esiti["n_osservazioni_viag"]).clip(0, 1)
@@ -360,17 +360,17 @@ class ViaggiatoriAggregator:
 
 class FeatureBuilder:
     """
-    Orchestratore principale: combina AllarmiAggregator e ViaggiatoriAggregator,
-    calcola lo score_composito finale e produce il DataFrame pronto per i modelli.
+    Main orchestrator: combines AllarmiAggregator and ViaggiatoriAggregator,
+    computes the final score_composito and produces the DataFrame ready for the models.
 
-    Uso:
+    Usage:
         builder = FeatureBuilder()
         df_features = builder.build(df_allarmi, df_viaggiatori)
 
-    Output identico a features_classical.csv prodotto dal notebook classico.
+    Output identical to features_classical.csv produced by the classical notebook.
     """
 
-    # Pesi score_composito — identici al notebook 02
+    # score_composito weights — identical to notebook 02
     W_ALLARMI_LOG   = 0.35
     W_RISCHIO_ESITI = 0.35
     W_INTERPOL      = 0.15
@@ -382,43 +382,43 @@ class FeatureBuilder:
 
     def build(self, df_allarmi: pd.DataFrame, df_viaggiatori: pd.DataFrame) -> pd.DataFrame:
         """
-        Esegue l'intero feature engineering.
+        Runs the full feature engineering pipeline.
 
         Args:
-            df_allarmi:     output di clean_allarmi() da preprocessing.py
-            df_viaggiatori: output di clean_viaggiatori() da preprocessing.py
+            df_allarmi:     output of clean_allarmi() from preprocessing.py
+            df_viaggiatori: output of clean_viaggiatori() from preprocessing.py
 
         Returns:
-            DataFrame con una riga per ROTTA e tutte le feature numeriche
+            DataFrame with one row per ROTTA and all numeric features
             + score_composito
         """
-        # 1. Aggiungi colonna ROTTA a entrambi i dataset
+        # 1. Add ROTTA column to both datasets
         df_allarmi     = self._add_rotta(df_allarmi)
         df_viaggiatori = self._add_rotta(df_viaggiatori)
 
-        # 2. Aggrega separatamente
+        # 2. Aggregate separately
         agg_a = self._allarmi_agg.fit_transform(df_allarmi)
         agg_v = self._viaggiatori_agg.fit_transform(df_viaggiatori)
 
-        # 3. Outer join: mantiene rotte presenti in almeno uno dei due dataset
+        # 3. Outer join: keeps routes present in at least one of the two datasets
         features = agg_a.merge(agg_v, on="ROTTA", how="outer")
 
-        # 4. Fix PAESE_PART e ZONA per rotte solo in VIAGGIATORI
+        # 4. Fix PAESE_PART and ZONA for routes only in VIAGGIATORI
         features = self._fix_paese_zona(features, df_viaggiatori)
 
-        # 5. Fillna: numerici → 0, categorici → "ND"
+        # 5. Fillna: numeric → 0, categorical → "ND"
         features = self._fillna(features)
 
-        # 6. Score composito
+        # 6. Composite score
         features = self._add_score_composito(features)
 
         return features
 
-    # ── metodi privati ─────────────────────────────────────────────────────────
+    # ── private methods ────────────────────────────────────────────────────────
 
     @staticmethod
     def _add_rotta(df: pd.DataFrame) -> pd.DataFrame:
-        """Aggiunge la colonna ROTTA = AREOPORTO_PARTENZA-AREOPORTO_ARRIVO."""
+        """Adds the ROTTA column = AREOPORTO_PARTENZA-AREOPORTO_ARRIVO."""
         if "ROTTA" not in df.columns:
             df = df.copy()
             df["ROTTA"] = (
@@ -430,8 +430,8 @@ class FeatureBuilder:
     @staticmethod
     def _fix_paese_zona(features: pd.DataFrame, df_viaggiatori: pd.DataFrame) -> pd.DataFrame:
         """
-        Le rotte presenti solo in VIAGGIATORI hanno PAESE_PART e ZONA a NaN.
-        Le recupera dal dataset viaggiatori come fallback.
+        Routes present only in VIAGGIATORI have PAESE_PART and ZONA as NaN.
+        Recovers them from the viaggiatori dataset as a fallback.
         """
         fallback = (
             df_viaggiatori.groupby("ROTTA")
@@ -470,8 +470,8 @@ class FeatureBuilder:
 
     def _add_score_composito(self, features: pd.DataFrame) -> pd.DataFrame:
         """
-        Score composito [0,1] — identico al notebook classico:
-            35% tot_allarmi_log normalizzato
+        Composite score [0,1] — identical to the classical notebook:
+            35% normalised tot_allarmi_log
             35% score_rischio_esiti
             15% pct_interpol
             15% tasso_rilevanza
@@ -488,7 +488,7 @@ class FeatureBuilder:
         return features
 
     def quality_report(self, features: pd.DataFrame) -> dict:
-        """Restituisce un dizionario con le statistiche di qualità del DataFrame."""
+        """Returns a dictionary with the quality statistics of the DataFrame."""
         num = features.select_dtypes(include="number")
         return {
             "n_rotte"      : len(features),

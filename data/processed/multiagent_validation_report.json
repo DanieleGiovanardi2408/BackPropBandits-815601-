@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-08T17:19:56.897131+00:00",
+  "generated_at_utc": "2026-04-10T15:07:39.989347+00:00",
   "run_llm_smoke": false,
   "results": [
     {
@@ -15,7 +15,7 @@
         "continue_on_error": false,
         "save_outputs": false
       },
-      "runtime_s": 0.531,
+      "runtime_s": 2.898,
       "completed_stages": [
         "data",
         "feature",
@@ -40,7 +40,7 @@
         "continue_on_error": false,
         "save_outputs": false
       },
-      "runtime_s": 0.506,
+      "runtime_s": 2.329,
       "completed_stages": [
         "data",
         "feature",
@@ -65,7 +65,7 @@
         "continue_on_error": false,
         "save_outputs": false
       },
-      "runtime_s": 0.209,
+      "runtime_s": 0.52,
       "completed_stages": [
         "data",
         "feature",
@@ -90,7 +90,7 @@
         "continue_on_error": false,
         "save_outputs": false
       },
-      "runtime_s": 0.285,
+      "runtime_s": 0.655,
       "completed_stages": [
         "data",
         "feature",
@@ -115,7 +115,7 @@
         "continue_on_error": false,
         "save_outputs": false
       },
-      "runtime_s": 0.22,
+      "runtime_s": 0.452,
       "completed_stages": [
         "data",
         "feature",
