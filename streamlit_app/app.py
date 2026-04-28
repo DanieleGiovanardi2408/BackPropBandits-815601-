@@ -150,14 +150,20 @@ def _stage_table(summary: dict) -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False)
 def _load_classical_report() -> pd.DataFrame | None:
-    """Load the classical report (static) once."""
-    cl_path = PROJECT_ROOT / "data" / "processed" / "anomaly_results.csv"
-    if not cl_path.exists():
-        return None
-    try:
-        return pd.read_csv(cl_path)
-    except Exception:
-        return None
+    """Load the classical pipeline report (static, pre-computed on full dataset).
+
+    Tries final_report.csv first (output of classical_pipeline/main.py and
+    notebook 05), then falls back to anomaly_results.csv for compatibility
+    with older runs.
+    """
+    for name in ("final_report.csv", "anomaly_results.csv"):
+        cl_path = PROJECT_ROOT / "data" / "processed" / name
+        if cl_path.exists():
+            try:
+                return pd.read_csv(cl_path)
+            except Exception:
+                continue
+    return None
 
 
 def main() -> None:

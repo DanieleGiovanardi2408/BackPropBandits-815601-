@@ -27,14 +27,26 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _robust_zscore(series: pd.Series) -> tuple[pd.Series, float, float]:
-    """Returns robust z-score using median and MAD."""
+    """Returns robust z-score using median and MAD.
+
+    Fallback to std-based z-score when MAD=0 (common for sparse features
+    where median=0 but meaningful outliers exist above zero).
+    This prevents z-score columns from being silently all-zero, which would
+    make the BaselineAgent contribution invisible to the ReportAgent.
+    """
     s = pd.to_numeric(series, errors="coerce").fillna(0.0)
     median = float(s.median())
     mad = float((s - median).abs().median())
-    if mad == 0:
-        return pd.Series(np.zeros(len(s)), index=s.index), median, mad
-    z = (s - median) / (1.4826 * mad)
-    return z, median, mad
+    if mad > 0:
+        z = (s - median) / (1.4826 * mad)
+        return z, median, mad
+    # MAD=0: more than 50% of values equal the median (common for sparse features).
+    # Fall back to std-based z-score so outliers above zero are still detected.
+    std = float(s.std())
+    if std == 0:
+        return pd.Series(np.zeros(len(s)), index=s.index), median, 0.0
+    z = (s - median) / std
+    return z, median, std
 
 
 def run_baseline_agent(

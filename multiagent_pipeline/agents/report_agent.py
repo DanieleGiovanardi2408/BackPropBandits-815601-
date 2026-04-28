@@ -27,17 +27,86 @@ logger = logging.getLogger(__name__)
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
+# Mapping z-score column → (absolute value column, human-readable label)
+# These are the 11 baseline features computed by BaselineAgent.
+_Z_COL_MAP: dict[str, tuple[str, str]] = {
+    "z_pct_interpol":        ("pct_interpol",         "% allarmi Interpol"),
+    "z_pct_sdi":             ("pct_sdi",              "% allarmi SDI"),
+    "z_pct_nsis":            ("pct_nsis",             "% allarmi NSIS"),
+    "z_tasso_rilevanza":     ("tasso_rilevanza",       "tasso rilevanza"),
+    "z_tasso_inv_medio":     ("tasso_inv_medio",       "tasso investigazione"),
+    "z_tasso_allarme_medio": ("tasso_allarme_medio",   "tasso allarme medio"),
+    "z_tasso_chiusura":      ("tasso_chiusura",        "tasso chiusura"),
+    "z_tasso_fermati":       ("tasso_fermati",         "tasso fermati"),
+    "z_tasso_respinti":      ("tasso_respinti",        "tasso respinti"),
+    "z_score_rischio_esiti": ("score_rischio_esiti",   "score rischio esiti"),
+    "z_tot_allarmi_log":     ("tot_allarmi_sum",       "volume allarmi totali"),
+}
+
+
+def _fmt(v: object) -> str:
+    """Formats a numeric value for the LLM prompt, handles NaN/None."""
+    try:
+        return f"{float(v):.3f}"  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return "N/D"
+
+
 def format_route_for_llm(row: dict) -> str:
     """Tool 1 — format_route_for_llm(row)
 
-    Prepares the synthetic context of a route for the LLM prompt.
+    Builds a structured context for the LLM by:
+    1. Identifying the top-3 anomaly drivers (features with highest |z-score|
+       relative to the historical baseline computed by BaselineAgent).
+    2. Adding absolute values, individual model scores, and route context.
+
+    This gives the LLM concrete, cited evidence instead of bare aggregate scores.
     """
+    # ── Top-3 z-score drivers ──────────────────────────────────────────────
+    z_scores: dict[str, float] = {}
+    for z_col in _Z_COL_MAP:
+        val = row.get(z_col)
+        if val is not None:
+            try:
+                z_scores[z_col] = abs(float(val))  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                pass
+
+    top3 = sorted(z_scores, key=z_scores.__getitem__, reverse=True)[:3]
+
+    driver_lines = []
+    for z_col in top3:
+        abs_col, label = _Z_COL_MAP[z_col]
+        z_val = float(row.get(z_col, 0))  # type: ignore[arg-type]
+        abs_val = row.get(abs_col)
+        driver_lines.append(
+            f"  - {label}: valore={_fmt(abs_val)}, deviazione={z_val:+.2f}σ dalla baseline"
+        )
+
+    drivers_str = (
+        "\n".join(driver_lines) if driver_lines
+        else "  - z-score non disponibili per questa rotta"
+    )
+
+    # ── Individual model scores ────────────────────────────────────────────
+    models_str = (
+        f"IsolationForest={_fmt(row.get('score_if'))}, "
+        f"LOF={_fmt(row.get('score_lof'))}, "
+        f"Autoencoder={_fmt(row.get('score_ae'))}"
+    )
+
+    # ── Route context ──────────────────────────────────────────────────────
     return (
-        f"ROTTA={row.get('ROTTA', 'ND')}; "
-        f"risk_label={row.get('risk_label', 'ND')}; "
-        f"ensemble_score={row.get('ensemble_score', 0):.4f}; "
-        f"score_composito={row.get('score_composito', 0):.4f}; "
-        f"baseline_score={row.get('baseline_score', 0):.4f}"
+        f"ROTTA: {row.get('ROTTA', 'N/D')} | "
+        f"Paese partenza: {row.get('PAESE_PART', 'N/D')} | "
+        f"Zona: {row.get('ZONA', 'N/D')}\n"
+        f"Livello rischio: {row.get('risk_label', 'N/D')} | "
+        f"Ensemble score: {_fmt(row.get('ensemble_score', 0))}\n"
+        f"Score per modello: {models_str}\n"
+        f"Volumi: allarmi_totali={_fmt(row.get('tot_allarmi_sum'))}, "
+        f"passeggeri_entrati={_fmt(row.get('tot_entrati'))}\n"
+        f"Top 3 driver anomalia (feature più distanti dalla baseline storica):\n"
+        f"{drivers_str}"
     )
 
 
@@ -45,12 +114,15 @@ def generate_explanation(context: str, llm: ChatAnthropic) -> str:
     """Tool 2 — generate_explanation(context)
 
     Generates a narrative explanation of the anomalous route using a real LLM.
+    The prompt explicitly requires citing the top drivers with their values.
     """
     prompt = (
-        "You are an airport risk analyst. "
-        "Explain in at most 3 sentences why the route can be considered anomalous, "
-        "citing the score and risk level, without inventing data.\n\n"
-        f"Context:\n{context}"
+        "Sei un analista rischio aeroportuale. "
+        "Analizza i dati della rotta forniti e spiega in massimo 3 frasi perché è anomala. "
+        "Devi citare OBBLIGATORIAMENTE almeno 2 dei driver di anomalia forniti, "
+        "indicando il nome della feature, il suo valore e la deviazione dalla baseline. "
+        "Non inventare dati non presenti nel contesto.\n\n"
+        f"Dati rotta:\n{context}"
     )
     response = llm.invoke(prompt)
     return response.content.strip()
@@ -121,21 +193,24 @@ def run_report_agent(
                 logger.warning("ReportAgent -- %s", llm_warning)
 
         # Routes to explain: all ALTA/MEDIA, sorted by descending score.
+        # Full rows are passed to format_route_for_llm so it can extract
+        # z-score drivers. The final findings dict only stores key fields.
         explain_df = (
             df[df["risk_label"].isin(["ALTA", "MEDIA"])]
             .sort_values("ensemble_score", ascending=False)
             .copy()
         )
-        explain_cols = [c for c in ["ROTTA", "risk_label", "ensemble_score", "score_composito", "baseline_score"] if c in explain_df.columns]
-        explain_rows = explain_df[explain_cols].to_dict(orient="records")
+        full_rows = explain_df.to_dict(orient="records")
+        _output_cols = ["ROTTA", "PAESE_PART", "ZONA", "risk_label",
+                        "ensemble_score", "score_composito", "baseline_score"]
 
         findings = []
-        for row in explain_rows:
+        for row in full_rows:
             context = format_route_for_llm(row)
             if llm is None:
                 explanation = (
-                    "LLM explanation not executed (dry_run/use_llm=False mode). "
-                    "Check score and trends in the frontend."
+                    "Spiegazione LLM non eseguita (dry_run/use_llm=False). "
+                    "Consulta score e driver nel frontend."
                 )
             else:
                 try:
@@ -144,10 +219,13 @@ def run_report_agent(
                     llm_warning = f"LLM call failed ({e}); local fallback activated."
                     logger.warning("ReportAgent -- %s", llm_warning)
                     explanation = (
-                        "LLM explanation unavailable due to connection/API error. "
-                        "Analyse the route using ensemble_score, baseline_score and risk_label."
+                        "Spiegazione LLM non disponibile (errore API). "
+                        "Analizza la rotta usando ensemble_score, baseline_score e i driver z-score."
                     )
-            findings.append({**row, "explanation": explanation})
+            # Store only key fields in the output JSON (not all 65 columns)
+            finding_record = {k: row.get(k) for k in _output_cols if k in row}
+            finding_record["explanation"] = explanation
+            findings.append(finding_record)
 
         report = build_final_report(
             findings=findings,

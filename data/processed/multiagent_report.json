@@ -1,139 +1,589 @@
 {
-  "generated_at_utc": "2026-04-09T11:32:39.106019+00:00",
+  "generated_at_utc": "2026-04-28T10:20:56.455986+00:00",
   "perimeter": {
-    "anno": 2023
+    "anno": 2024
   },
-  "n_rotte_analizzate": 39,
+  "n_rotte_analizzate": 565,
   "distribution": {
-    "alta": 10,
-    "media": 5,
-    "normale": 24
+    "alta": 17,
+    "media": 40,
+    "normale": 508
   },
   "thresholds": {
-    "soglia_alta": 0.3579,
-    "soglia_media": 0.2897
+    "soglia_alta": 0.44145767823077525,
+    "soglia_media": 0.33089144185669334
   },
   "findings": [
     {
-      "ROTTA": "LGW-MXP",
+      "ROTTA": "ALG-MXP",
+      "PAESE_PART": "Algeria",
+      "ZONA": 2.0,
       "risk_label": "ALTA",
-      "ensemble_score": 0.9643122986969505,
-      "score_composito": 0.4052958115816748,
-      "baseline_score": 0.3758313415587461,
-      "explanation": "La rotta LGW-MXP (Londra Gatwick-Milano Malpensa) presenta un **livello di rischio ALTA** con un ensemble_score molto elevato di 0.9643, che indica una forte anomalia rilevata dai modelli predittivi. Nonostante gli score composito (0.4053) e baseline (0.3758) siano moderati, l'ensemble score quasi prossimo a 1 suggerisce pattern di volo significativamente devianti rispetto al comportamento normale atteso per questa tratta. L'anomalia potrebbe derivare da irregolarità operative, variazioni inusuali nei parametri di volo o discrepanze nei dati che richiedono un'analisi approfondita."
+      "ensemble_score": 0.6986099528299335,
+      "score_composito": 0.4847805262904987,
+      "baseline_score": 1.7414787367028497,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
     },
     {
-      "ROTTA": "STN-PSA",
+      "ROTTA": "CMN-BLQ",
+      "PAESE_PART": "Marocco",
+      "ZONA": 8.0,
       "risk_label": "ALTA",
-      "ensemble_score": 0.9386050521601819,
-      "score_composito": 0.35,
-      "baseline_score": 0.4019099647840795,
-      "explanation": "La rotta STN-PSA presenta un **livello di rischio ALTA** con un ensemble_score molto elevato di **0.9386**, che indica una forte anomalia rilevata dai modelli di machine learning. Nonostante lo score_composito sia moderato (**0.3500**) e il baseline_score sia **0.4019**, l'ensemble score quasi prossimo a 1 segnala pattern di comportamento significativamente devianti rispetto alla normalità. Questa discrepanza tra gli score suggerisce che i modelli avanzati hanno identificato caratteristiche anomale non immediatamente evidenti nelle metriche tradizionali, giustificando la classificazione ad alto rischio."
+      "ensemble_score": 0.6078499333597148,
+      "score_composito": 0.5425658530958926,
+      "baseline_score": 1.720195080691534,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
     },
     {
-      "ROTTA": "EWR-MXP",
+      "ROTTA": "RAK-CIA",
+      "PAESE_PART": "Marocco",
+      "ZONA": 5.0,
       "risk_label": "ALTA",
-      "ensemble_score": 0.9279319487346743,
-      "score_composito": 0.34634667117022455,
-      "baseline_score": 0.397074760001864,
-      "explanation": "La rotta EWR-MXP presenta un **livello di rischio ALTA** con un ensemble_score molto elevato di **0.9279**, che indica una forte anomalia rilevata dai modelli di machine learning. Nonostante gli score composito (0.3463) e baseline (0.3971) siano relativamente contenuti, l'ensemble score quasi prossimo a 1 suggerisce pattern comportamentali o operativi significativamente devianti rispetto alla norma. Questa discrepanza tra metriche richiede un'analisi approfondita per identificare le specifiche anomalie che hanno generato l'alert ad alto rischio."
+      "ensemble_score": 0.6045091639610537,
+      "score_composito": 0.4423009392054059,
+      "baseline_score": 1.2549160708558895,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
     },
     {
-      "ROTTA": "TIA-PSA",
+      "ROTTA": "SIN-MXP",
+      "PAESE_PART": "Singapore",
+      "ZONA": 2.0,
       "risk_label": "ALTA",
-      "ensemble_score": 0.9178004394500741,
-      "score_composito": 0.3428787262358478,
-      "baseline_score": 0.39248491202691743,
-      "explanation": "La rotta TIA-PSA presenta un **livello di rischio ALTA** con un ensemble_score molto elevato di **0.9178**, che indica una forte anomalia rilevata dai modelli di machine learning. Nonostante gli score composito (0.3429) e baseline (0.3925) siano relativamente contenuti, l'ensemble score quasi prossimo a 1 suggerisce pattern di volo o caratteristiche operative significativamente devianti rispetto ai profili normali. L'anomalia è quindi determinata principalmente dalla combinazione di fattori che i modelli ensemble hanno identificato come altamente atipici per questa specifica rotta."
+      "ensemble_score": 0.5502658383119529,
+      "score_composito": 0.5054344692719018,
+      "baseline_score": 1.3591019734594767,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
     },
     {
-      "ROTTA": "STN-CIA",
+      "ROTTA": "TUN-BLQ",
+      "PAESE_PART": "Tunisia",
+      "ZONA": 8.0,
       "risk_label": "ALTA",
-      "ensemble_score": 0.9166415685084389,
-      "score_composito": 0.34248205279867816,
-      "baseline_score": 0.3919599121186835,
-      "explanation": "La rotta STN-CIA presenta un **livello di rischio ALTA** con un ensemble_score molto elevato di **0.9166**, che indica una forte anomalia rilevata dai modelli di machine learning. Nonostante gli score composito (0.3425) e baseline (0.3920) siano relativamente contenuti, l'ensemble score sopra 0.91 segnala pattern comportamentali o operativi significativamente devianti rispetto alla norma. Questa discrepanza tra metriche suggerisce che l'anomalia non deriva da fattori standard ma da combinazioni complesse di variabili che richiedono un'analisi approfondita."
+      "ensemble_score": 0.5395540268257442,
+      "score_composito": 0.5058359306250707,
+      "baseline_score": 1.0276583384223203,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
     },
     {
-      "ROTTA": "DXB-NAP",
+      "ROTTA": "RAK-TSF",
+      "PAESE_PART": "Marocco",
+      "ZONA": 4.0,
       "risk_label": "ALTA",
-      "ensemble_score": 0.8093893851173871,
-      "score_composito": 0.3057703787880558,
-      "baseline_score": 0.34337176962995775,
-      "explanation": "La rotta DXB-NAP (Dubai-Napoli) presenta un **livello di rischio ALTA** con un ensemble_score elevato di **0.8094**, che indica una forte anomalia rilevata dai modelli predittivi avanzati. Nonostante gli score composito (0.3058) e baseline (0.3434) siano moderati, il modello ensemble evidenzia pattern comportamentali o operativi significativamente devianti rispetto ai profili normali. La discrepanza tra l'ensemble_score e gli altri indicatori suggerisce la presenza di fattori di rischio complessi che richiedono un'analisi approfondita."
+      "ensemble_score": 0.5195922478385859,
+      "score_composito": 0.3261926619559642,
+      "baseline_score": 1.1972768472399176,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
     },
     {
-      "ROTTA": "IST-BRI",
+      "ROTTA": "RMO-MXP",
+      "PAESE_PART": "Moldavia",
+      "ZONA": 2.0,
       "risk_label": "ALTA",
-      "ensemble_score": 0.488685189333985,
-      "score_composito": 0.28898837125554855,
-      "baseline_score": 0.12263468354119912,
-      "explanation": "La rotta IST-BRI presenta un **livello di rischio ALTA** con un ensemble_score di 0.4887, significativamente superiore al baseline_score di 0.1226, indicando una deviazione marcata rispetto ai pattern storici normali. Lo score_composito di 0.2890 conferma anomalie rilevate da multipli indicatori di rischio. Questa combinazione di metriche elevate suggerisce comportamenti di volo o caratteristiche operative che si discostano sostanzialmente dalla normalità attesa per questa tratta."
+      "ensemble_score": 0.5176258683527064,
+      "score_composito": 0.2965957978813003,
+      "baseline_score": 1.1868704335536528,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
     },
     {
-      "ROTTA": "GRU-FCO",
+      "ROTTA": "CAN-FCO",
+      "PAESE_PART": "Cina",
+      "ZONA": 5.0,
       "risk_label": "ALTA",
-      "ensemble_score": 0.4845875175518398,
-      "score_composito": 0.24108936632915062,
-      "baseline_score": 0.15850302912090286,
-      "explanation": "La rotta GRU-FCO (San Paolo-Roma) presenta un **livello di rischio ALTA** con uno score ensemble di 0.4846, significativamente superiore al baseline di 0.1585, indicando un'anomalia rispetto al comportamento storico normale di questa tratta. Il divario tra l'ensemble score e lo score composito (0.2411) suggerisce che i modelli di machine learning hanno rilevato pattern sospetti non completamente catturati dalle metriche tradizionali. Questa combinazione di indicatori giustifica un'attenzione particolare per possibili irregolarità operative, documentali o comportamentali associate al volo."
+      "ensemble_score": 0.4935898006196572,
+      "score_composito": 0.2687978437259285,
+      "baseline_score": 0.8901160898452496,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
     },
     {
-      "ROTTA": "CAI-FCO",
+      "ROTTA": "HRG-NAP",
+      "PAESE_PART": "Egitto",
+      "ZONA": 6.0,
       "risk_label": "ALTA",
-      "ensemble_score": 0.4325097467922686,
-      "score_composito": 0.26975990924396775,
-      "baseline_score": 0.0971856873503033,
-      "explanation": "La rotta CAI-FCO presenta un **livello di rischio ALTA** con uno score ensemble di 0.4325, significativamente superiore al baseline di 0.0972, indicando una deviazione marcata rispetto ai pattern storici normali. Lo score composito di 0.2698 conferma anomalie rilevate su più dimensioni di analisi (operativa, temporale, comportamentale). Questa combinazione di indicatori suggerisce che la rotta manifesta caratteristiche atipiche che richiedono un'attenzione prioritaria e verifiche approfondite."
+      "ensemble_score": 0.4929880891173642,
+      "score_composito": 0.15311064961028387,
+      "baseline_score": 0.5714760248028081,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
     },
     {
-      "ROTTA": "STN-PMO",
+      "ROTTA": "LHR-VCE",
+      "PAESE_PART": "Regno Unito",
+      "ZONA": 4.0,
       "risk_label": "ALTA",
-      "ensemble_score": 0.4169448803097181,
-      "score_composito": 0.1714393631179239,
-      "baseline_score": 0.1655837851281589,
-      "explanation": "La rotta STN-PMO presenta un **livello di rischio ALTA** con un ensemble_score di 0.4169, significativamente superiore sia allo score_composito (0.1714) che al baseline_score (0.1656). Questa discrepanza indica che i modelli di machine learning rilevano pattern anomali non catturati dalle metriche tradizionali, suggerendo comportamenti o caratteristiche passeggeri atipici rispetto al profilo standard della rotta. L'elevato ensemble_score, quasi 2.5 volte superiore agli altri indicatori, segnala la necessità di controlli approfonditi su questa tratta Londra Stansted-Palermo."
+      "ensemble_score": 0.48010506552345916,
+      "score_composito": 0.5634262398982713,
+      "baseline_score": 1.5360294659311906,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
     },
     {
-      "ROTTA": "KWI-MXP",
+      "ROTTA": "EVN-VCE",
+      "PAESE_PART": "Armenia",
+      "ZONA": 4.0,
+      "risk_label": "ALTA",
+      "ensemble_score": 0.4787262848939532,
+      "score_composito": 0.35386541705099045,
+      "baseline_score": 1.2987112625492268,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "GIG-LIN",
+      "PAESE_PART": "Brasile",
+      "ZONA": 2.0,
+      "risk_label": "ALTA",
+      "ensemble_score": 0.472984750395599,
+      "score_composito": 0.06999999999999999,
+      "baseline_score": 0.6953483289893195,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "PVG-MXP",
+      "PAESE_PART": "Cina",
+      "ZONA": 2.0,
+      "risk_label": "ALTA",
+      "ensemble_score": 0.4690234959928894,
+      "score_composito": 0.36912673698757004,
+      "baseline_score": 1.1306629558057693,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "PEW-MXP",
+      "PAESE_PART": "Pakistan",
+      "ZONA": 2.0,
+      "risk_label": "ALTA",
+      "ensemble_score": 0.4641945586071413,
+      "score_composito": 0.08166666666666667,
+      "baseline_score": 0.702528021123313,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "KIV-FCO",
+      "PAESE_PART": "Moldavia",
+      "ZONA": 5.0,
+      "risk_label": "ALTA",
+      "ensemble_score": 0.4631530659982826,
+      "score_composito": 0.15876789940632954,
+      "baseline_score": 0.36415139277188974,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "BHX-FCO",
+      "PAESE_PART": "Regno Unito",
+      "ZONA": 5.0,
+      "risk_label": "ALTA",
+      "ensemble_score": 0.4603144325693544,
+      "score_composito": 0.42211026595130097,
+      "baseline_score": 0.9284706739220454,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "RAK-TRN",
+      "PAESE_PART": "Marocco",
+      "ZONA": 1.0,
+      "risk_label": "ALTA",
+      "ensemble_score": 0.45695616659183547,
+      "score_composito": 0.3363100758568481,
+      "baseline_score": 1.209333392339945,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "RUH-VCE",
+      "PAESE_PART": "Arabia Saudita",
+      "ZONA": 4.0,
       "risk_label": "MEDIA",
-      "ensemble_score": 0.3451395638329417,
-      "score_composito": 0.14686090431756985,
-      "baseline_score": 0.13305403293000706,
-      "explanation": "La rotta KWI-MXP (Kuwait-Milano Malpensa) presenta un **livello di rischio MEDIO** con un ensemble_score di 0.3451, che indica una deviazione significativa dai pattern normali di traffico. Il score_composito (0.1469) e il baseline_score (0.1331) confermano anomalie rispetto ai profili storici attesi per questa tratta. L'anomalia potrebbe derivare da variazioni inusuali nei parametri operativi, nella frequenza dei voli o nelle caratteristiche del traffico passeggeri rispetto agli standard consolidati per collegamenti Medio Oriente-Europa."
+      "ensemble_score": 0.4401099835906823,
+      "score_composito": 0.2587978437259285,
+      "baseline_score": 1.2987614541174892,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
     },
     {
-      "ROTTA": "IST-VCE",
+      "ROTTA": "MAN-VCE",
+      "PAESE_PART": "Regno Unito",
+      "ZONA": 4.0,
       "risk_label": "MEDIA",
-      "ensemble_score": 0.31707371012674673,
-      "score_composito": 0.21,
-      "baseline_score": 0.061317341770599575,
-      "explanation": "La rotta IST-VCE presenta un **livello di rischio MEDIO** con uno score ensemble di **0.3171**, significativamente superiore al baseline di **0.0613**, indicando una deviazione rilevante rispetto al comportamento normale della tratta. Lo score composito di **0.2100** conferma che multipli indicatori di rischio hanno contribuito alla classificazione anomala. L'anomalia suggerisce la presenza di pattern operativi o comportamentali che si discostano dalle caratteristiche tipiche dei voli Istanbul-Venezia e richiedono un'attenzione particolare."
+      "ensemble_score": 0.43967090425166633,
+      "score_composito": 0.39799626016079404,
+      "baseline_score": 1.32123136137444,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
     },
     {
-      "ROTTA": "MHD-FCO",
+      "ROTTA": "MEX-FCO",
+      "PAESE_PART": "Messico",
+      "ZONA": 5.0,
       "risk_label": "MEDIA",
-      "ensemble_score": 0.31707371012674673,
-      "score_composito": 0.21,
-      "baseline_score": 0.061317341770599575,
-      "explanation": "La rotta MHD-FCO presenta un **livello di rischio MEDIO** con un ensemble_score di 0.3171, significativamente superiore al baseline_score di 0.0613, indicando un'anomalia rispetto al comportamento storico normale. Il score_composito di 0.2100 conferma che multipli indicatori di rischio hanno rilevato pattern sospetti su questa tratta. L'anomalia è determinata principalmente dal fatto che l'ensemble_score supera di oltre 5 volte il valore baseline, suggerendo comportamenti o caratteristiche del volo che si discostano dalle operazioni standard Mashhad-Roma Fiumicino."
+      "ensemble_score": 0.43731785698359976,
+      "score_composito": 0.4229533072016033,
+      "baseline_score": 1.1585865612964918,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
     },
     {
-      "ROTTA": "OXB-BLQ",
+      "ROTTA": "TIA-NAP",
+      "PAESE_PART": "Albania",
+      "ZONA": 6.0,
       "risk_label": "MEDIA",
-      "ensemble_score": 0.31707371012674673,
-      "score_composito": 0.21,
-      "baseline_score": 0.061317341770599575,
-      "explanation": "La rotta OXB-BLQ presenta un **livello di rischio MEDIO** con uno score ensemble di **0.3171**, significativamente superiore al baseline di **0.0613**, indicando una deviazione rilevante dal comportamento normale. Lo score composito di **0.2100** conferma che questa tratta mostra caratteristiche anomale rispetto ai pattern storici attesi. L'anomalia potrebbe derivare da fattori operativi inusuali, frequenza di volo atipica o caratteristiche del collegamento tra questi aeroporti che si discostano dagli standard."
+      "ensemble_score": 0.4373107443612413,
+      "score_composito": 0.39849197029288047,
+      "baseline_score": 1.186846285077027,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "DXB-BGY",
+      "PAESE_PART": "Emirati Arabi Uniti",
+      "ZONA": 2.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.4342327619269338,
+      "score_composito": 0.42388925105227093,
+      "baseline_score": 1.1146823953948426,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "AMM-FCO",
+      "PAESE_PART": "Giordania",
+      "ZONA": 5.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.43009225471789775,
+      "score_composito": 0.3598008225780198,
+      "baseline_score": 0.907189002297784,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "CMN-FCO",
+      "PAESE_PART": "Marocco",
+      "ZONA": 5.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.42698744585219933,
+      "score_composito": 0.45872122057978637,
+      "baseline_score": 1.2957839802111626,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "YUL-FCO",
+      "PAESE_PART": "Canada",
+      "ZONA": 5.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.424809820955907,
+      "score_composito": 0.1609024762231277,
+      "baseline_score": 0.7731662998348576,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "STN-CTA",
+      "PAESE_PART": "Regno Unito",
+      "ZONA": 7.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.42258869282989564,
+      "score_composito": 0.39714465800768634,
+      "baseline_score": 1.220641379009244,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "IST-BLQ",
+      "PAESE_PART": "Turchia",
+      "ZONA": 8.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.41548058406862076,
+      "score_composito": 0.4562471803739464,
+      "baseline_score": 1.3772138965160479,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "TIA-FCO",
+      "PAESE_PART": "Albania",
+      "ZONA": 5.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.4127118352822103,
+      "score_composito": 0.42329846025603635,
+      "baseline_score": 1.238239457809996,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "TIA-TRN",
+      "PAESE_PART": "Albania",
+      "ZONA": 1.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.4107951121793673,
+      "score_composito": 0.4321991868452315,
+      "baseline_score": 0.9935680524584007,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "JED-VCE",
+      "PAESE_PART": "Arabia Saudita",
+      "ZONA": 4.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.40977634355393594,
+      "score_composito": 0.3775533332166025,
+      "baseline_score": 1.2175952843280078,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "LRM-MXP",
+      "PAESE_PART": "Repubblica Dominicana",
+      "ZONA": 2.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.4055580149966328,
+      "score_composito": 0.33056396585016196,
+      "baseline_score": 0.8920141526332219,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
     },
     {
       "ROTTA": "TIA-RMI",
+      "PAESE_PART": "Albania",
+      "ZONA": 8.0,
       "risk_label": "MEDIA",
-      "ensemble_score": 0.31707371012674673,
-      "score_composito": 0.21,
-      "baseline_score": 0.061317341770599575,
-      "explanation": "La rotta TIA-RMI presenta un **livello di rischio MEDIO** con un ensemble score di 0.3171, significativamente superiore al baseline di 0.0613, indicando un'anomalia rispetto ai pattern storici normali. Il score composito di 0.2100 conferma una deviazione rilevante dai comportamenti standard attesi per questa tratta. L'incremento di oltre 5 volte rispetto al baseline suggerisce la presenza di fattori di rischio che richiedono un'attenzione particolare e possibili verifiche aggiuntive."
+      "ensemble_score": 0.40243864413688757,
+      "score_composito": 0.39071516489710334,
+      "baseline_score": 0.9152891605542398,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "DXB-MXP",
+      "PAESE_PART": "Emirati Arabi Uniti",
+      "ZONA": 2.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.39680543807869484,
+      "score_composito": 0.4422671610724631,
+      "baseline_score": 1.2648242710983164,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "JED-MXP",
+      "PAESE_PART": "Arabia Saudita",
+      "ZONA": 2.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.3897381047394769,
+      "score_composito": 0.4326992610592968,
+      "baseline_score": 0.952905471787619,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "BEG-VCE",
+      "PAESE_PART": "Serbia",
+      "ZONA": 4.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.38358472901712093,
+      "score_composito": 0.13981393110321472,
+      "baseline_score": 1.0042332129213813,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "MCT-MXP",
+      "PAESE_PART": "Oman",
+      "ZONA": 2.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.3816168043485444,
+      "score_composito": 0.4023506617034468,
+      "baseline_score": 0.8193354805697315,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "SSH-VRN",
+      "PAESE_PART": "-",
+      "ZONA": 4.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.3805832443959414,
+      "score_composito": 0.26229188494358324,
+      "baseline_score": 1.0689811759312398,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "TFU-FCO",
+      "PAESE_PART": "Cina",
+      "ZONA": 5.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.37078823502434133,
+      "score_composito": 0.2398139311032147,
+      "baseline_score": 0.9650374954862616,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "GIG-FCO",
+      "PAESE_PART": "Brasile",
+      "ZONA": 5.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.36978542495099,
+      "score_composito": 0.3929512727039822,
+      "baseline_score": 0.7284886499357902,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "SKP-FCO",
+      "PAESE_PART": "Macedonia",
+      "ZONA": 5.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.36905800634864633,
+      "score_composito": 0.28169890683712345,
+      "baseline_score": 1.00613671047923,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "CMN-CUF",
+      "PAESE_PART": "Marocco",
+      "ZONA": 1.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.36803404307818666,
+      "score_composito": 0.33607102897168023,
+      "baseline_score": 0.7142212397225767,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "TLV-MXP",
+      "PAESE_PART": "Israele",
+      "ZONA": 2.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.36537503900562457,
+      "score_composito": 0.36077006954244883,
+      "baseline_score": 1.2138716459144274,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "BRS-PSA",
+      "PAESE_PART": "Regno Unito",
+      "ZONA": 8.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.35377943885423513,
+      "score_composito": 0.2673112713038345,
+      "baseline_score": 0.7044623311561593,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "GLA-FCO",
+      "PAESE_PART": "Regno Unito",
+      "ZONA": 5.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.35311957452340165,
+      "score_composito": 0.36693985073965174,
+      "baseline_score": 0.9647698080582804,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "LCY-BLQ",
+      "PAESE_PART": "Regno Unito",
+      "ZONA": 8.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.3527105515259017,
+      "score_composito": 0.021016087377286212,
+      "baseline_score": 0.9042944126039258,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "KIV-MXP",
+      "PAESE_PART": "Moldavia",
+      "ZONA": 2.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.35246837447714596,
+      "score_composito": 0.1710160873772862,
+      "baseline_score": 0.6567612972353003,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "SIN-FCO",
+      "PAESE_PART": "Singapore",
+      "ZONA": 5.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.3519808532155655,
+      "score_composito": 0.3216319228342068,
+      "baseline_score": 1.0408778056335934,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "GRU-VCE",
+      "PAESE_PART": "Brasile",
+      "ZONA": 4.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.3513446279887047,
+      "score_composito": 0.13999999999999999,
+      "baseline_score": 1.0224773280892567,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "TBS-FCO",
+      "PAESE_PART": "Georgia",
+      "ZONA": 5.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.3513446279887047,
+      "score_composito": 0.13999999999999999,
+      "baseline_score": 1.0224773280892567,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "TPE-MXP",
+      "PAESE_PART": "Taiwan",
+      "ZONA": 2.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.3478658832895871,
+      "score_composito": 0.3048452179477273,
+      "baseline_score": 1.0407391869057758,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "BOS-FCO",
+      "PAESE_PART": "Stati Uniti",
+      "ZONA": 5.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.34603684559137404,
+      "score_composito": 0.31158988125076215,
+      "baseline_score": 0.9679063785996181,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "CMN-BGY",
+      "PAESE_PART": "Marocco",
+      "ZONA": 2.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.343891287119373,
+      "score_composito": 0.3407117290525345,
+      "baseline_score": 1.167852297111804,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "EDI-CIA",
+      "PAESE_PART": "Regno Unito",
+      "ZONA": 5.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.34300091351921,
+      "score_composito": 0.21304826213185862,
+      "baseline_score": 0.6835533293060657,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "IST-VCE",
+      "PAESE_PART": "Turchia",
+      "ZONA": 4.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.3422980510467461,
+      "score_composito": 0.3880581195978962,
+      "baseline_score": 1.170000432728881,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "SAW-BGY",
+      "PAESE_PART": "unknown",
+      "ZONA": 2.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.33983503862137027,
+      "score_composito": 0.42129950564335084,
+      "baseline_score": 1.1633246614610102,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "SSH-FCO",
+      "PAESE_PART": "Egitto",
+      "ZONA": 5.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.3350853495693139,
+      "score_composito": 0.33287498488072326,
+      "baseline_score": 0.9466654042115423,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
+    },
+    {
+      "ROTTA": "GRU-FCO",
+      "PAESE_PART": "Brasile",
+      "ZONA": 5.0,
+      "risk_label": "MEDIA",
+      "ensemble_score": 0.3321228648451442,
+      "score_composito": 0.3379429236212129,
+      "baseline_score": 0.9879275625355152,
+      "explanation": "Spiegazione LLM non eseguita (dry_run/use_llm=False). Consulta score e driver nel frontend."
     }
   ],
-  "summary": "Analisi completata su 39 rotte (anno=2023). Distribuzione rischio: ALTA=10, MEDIA=5, NORMALE=24. Sono state prodotte spiegazioni LLM per 15 rotte ALTA/MEDIA."
+  "summary": "Analysis completed on 565 routes (anno=2024). Risk distribution: ALTA=17, MEDIA=40, NORMALE=508. LLM explanations were generated for 57 ALTA/MEDIA routes."
 }
