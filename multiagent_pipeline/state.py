@@ -1,15 +1,15 @@
 """
 state.py
 ────────
-Contratto dei dati condiviso tra tutti gli agenti del sistema multi-agent.
+Shared data contract between all agents in the multi-agent system.
 
-Questo file definisce:
-  1. AgentState  — lo stato LangGraph che fluisce tra i nodi
-  2. Pydantic models — gli schemi di input/output di ogni agente
-  3. Costanti      — soglie e pesi condivisi con la pipeline classica
+This file defines:
+  1. AgentState  — the LangGraph state that flows between nodes
+  2. Pydantic models — input/output schemas for each agent
+  3. Constants   — thresholds and weights shared with the classical pipeline
 
-REGOLA: nessun agente importa direttamente un altro agente.
-        Comunicano SOLO attraverso AgentState.
+RULE: no agent imports another agent directly.
+      They communicate ONLY through AgentState.
 """
 
 from __future__ import annotations
@@ -22,66 +22,66 @@ from pydantic import BaseModel, Field
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 1. STATO CONDIVISO LANGGRAPH
-#    Ogni campo corrisponde all'output di un agente specifico.
-#    I campi sono Optional: un agente non ancora eseguito lascia None.
+# 1. SHARED LANGGRAPH STATE
+#    Each field corresponds to the output of a specific agent.
+#    Fields are Optional: an agent not yet executed leaves its field as None.
 # ══════════════════════════════════════════════════════════════════════════════
 
 class AgentState(TypedDict):
     """
-    Stato che fluisce tra i nodi del grafo LangGraph.
+    State that flows between nodes of the LangGraph graph.
 
-    Flusso:
+    Flow:
         DataAgent → FeatureAgent → BaselineAgent → OutlierAgent → ReportAgent
 
-    Ogni agente legge i campi dei suoi predecessori e scrive nel suo campo.
+    Each agent reads fields from its predecessors and writes to its own field.
     """
 
-    # ── Input utente ───────────────────────────────────────────────────────────
-    perimeter: dict                       # filtri utente: anno, aeroporto, paese, zona
+    # ── User input ─────────────────────────────────────────────────────────────
+    perimeter: dict                       # user filters: year, airport, country, zone
 
-    # ── Output DataAgent ──────────────────────────────────────────────────────
-    df_raw: Optional[Any]                 # pd.DataFrame — dataset_merged filtrato
-    df_allarmi: Optional[Any]             # pd.DataFrame — allarmi_clean filtrato
-    df_viaggiatori: Optional[Any]         # pd.DataFrame — viaggiatori_clean filtrato
-    data_meta: Optional[dict]             # statistiche dataset: n_righe, n_rotte, colonne
+    # ── DataAgent output ──────────────────────────────────────────────────────
+    df_raw: Optional[Any]                 # pd.DataFrame — filtered merged dataset
+    df_allarmi: Optional[Any]             # pd.DataFrame — cleaned alarms
+    df_viaggiatori: Optional[Any]         # pd.DataFrame — cleaned traveller records
+    data_meta: Optional[dict]             # dataset stats: n_rows, n_routes, columns
 
-    # ── Output FeatureAgent ───────────────────────────────────────────────────
-    df_features: Optional[Any]            # pd.DataFrame — 63 feature aggregate per ROTTA
-    feature_meta: Optional[dict]          # n_rotte, n_features, lista colonne usate
+    # ── FeatureAgent output ───────────────────────────────────────────────────
+    df_features: Optional[Any]            # pd.DataFrame — 54 features aggregated per route
+    feature_meta: Optional[dict]          # n_routes, n_features, list of feature columns
 
-    # ── Output BaselineAgent ──────────────────────────────────────────────────
-    df_baseline: Optional[Any]            # pd.DataFrame — features + z-score vs baseline
-    baseline_meta: Optional[dict]         # soglia z-score, n_features baseline, source
+    # ── BaselineAgent output ──────────────────────────────────────────────────
+    df_baseline: Optional[Any]            # pd.DataFrame — features + z-scores vs baseline
+    baseline_meta: Optional[dict]         # z-score threshold, n_baseline_features, source
 
-    # ── Output OutlierAgent ───────────────────────────────────────────────────
-    df_anomalies: Optional[Any]           # pd.DataFrame — scores IF/LOF/Z/AE + label
-    anomaly_meta: Optional[dict]          # n_alta, n_media, n_normale, soglie usate
+    # ── OutlierAgent output ───────────────────────────────────────────────────
+    df_anomalies: Optional[Any]           # pd.DataFrame — IF/LOF/Z/AE scores + risk label
+    anomaly_meta: Optional[dict]          # n_alta, n_media, n_normale, thresholds used
 
-    # ── Output ReportAgent ────────────────────────────────────────────────────
-    report: Optional[dict]                # report finale con spiegazioni LLM
-    report_path: Optional[str]            # path del JSON salvato su disco
+    # ── ReportAgent output ────────────────────────────────────────────────────
+    report: Optional[dict]                # final report with LLM explanations
+    report_path: Optional[str]            # path of the JSON file saved to disk
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 2. SCHEMI INPUT / OUTPUT DI OGNI AGENTE
-#    Usati per validare i dati in entrata e in uscita da ogni nodo.
+# 2. PER-AGENT INPUT / OUTPUT SCHEMAS
+#    Used to validate data entering and leaving each node.
 # ══════════════════════════════════════════════════════════════════════════════
 
 class Perimeter(BaseModel):
     """
-    Parametri di filtro che l'utente (o la UI Streamlit) passa al DataAgent.
-    Tutti opzionali: se non specificati, nessun filtro viene applicato.
+    Filter parameters passed by the user (or Streamlit UI) to DataAgent.
+    All optional: if not specified, no filter is applied.
     """
-    anno: Optional[int] = Field(None, description="Es. 2024")
-    aeroporto_arrivo: Optional[str] = Field(None, description="Es. 'FCO'")
-    aeroporto_partenza: Optional[str] = Field(None, description="Es. 'ALG'")
-    paese_partenza: Optional[str] = Field(None, description="Es. 'Algeria'")
-    zona: Optional[int] = Field(None, description="Zona geografica 1-9")
+    anno: Optional[int] = Field(None, description="e.g. 2024")
+    aeroporto_arrivo: Optional[str] = Field(None, description="e.g. 'FCO'")
+    aeroporto_partenza: Optional[str] = Field(None, description="e.g. 'ALG'")
+    paese_partenza: Optional[str] = Field(None, description="e.g. 'Algeria'")
+    zona: Optional[int] = Field(None, description="Geographic zone 1-9")
 
 
 class DataAgentOutput(BaseModel):
-    """Output del DataAgent — passato a FeatureAgent."""
+    """DataAgent output — passed to FeatureAgent."""
     n_righe: int
     n_rotte_uniche: int
     colonne: list[str]
@@ -90,46 +90,46 @@ class DataAgentOutput(BaseModel):
 
 
 class FeatureAgentOutput(BaseModel):
-    """Output del FeatureAgent — passato a BaselineAgent."""
+    """FeatureAgent output — passed to BaselineAgent."""
     n_rotte: int
     n_features: int
     feature_cols: list[str]
-    rotte_sample: list[str] = Field(description="Prime 5 rotte nel dataset")
+    rotte_sample: list[str] = Field(description="First 5 routes in the dataset")
 
 
 class BaselineAgentOutput(BaseModel):
-    """Output del BaselineAgent — passato a OutlierAgent."""
+    """BaselineAgent output — passed to OutlierAgent."""
     n_features_baseline: int
     z_score_threshold: float
-    source: str = Field(description="'precomputed' o 'computed_live'")
+    source: str = Field(description="'precomputed' or 'computed_live'")
     n_rotte_con_zscore: int
 
 
 class OutlierAgentOutput(BaseModel):
-    """Output dell'OutlierAgent — passato a ReportAgent."""
+    """OutlierAgent output — passed to ReportAgent."""
     n_alta: int
     n_media: int
     n_normale: int
     soglia_alta: float
     soglia_media: float
     metodo_ensemble: str = "weighted_average"
-    top_rotte: list[dict] = Field(description="Top 10 rotte anomale con score")
+    top_rotte: list[dict] = Field(description="Top 10 anomalous routes with scores")
 
 
 class ReportAgentOutput(BaseModel):
-    """Output finale del ReportAgent."""
+    """ReportAgent final output."""
     n_anomalie_spiegate: int
     report_path: str
-    sommario: str = Field(description="Sommario in linguaggio naturale del report")
+    sommario: str = Field(description="Plain-English summary of the report")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 3. COSTANTI CONDIVISE CON LA PIPELINE CLASSICA
-#    Questi valori devono essere IDENTICI a quelli usati nei notebook classici
-#    per garantire un confronto onesto.
+# 3. CONSTANTS SHARED WITH THE CLASSICAL PIPELINE
+#    These values must be IDENTICAL to those used in the classical notebooks
+#    to ensure a fair comparison between the two architectures.
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Pesi ensemble — stessi del classico (anomaly_summary.json)
+# Ensemble weights — same as classical pipeline (anomaly_summary.json)
 ENSEMBLE_WEIGHTS = {
     "IF":  0.35,   # IsolationForest
     "LOF": 0.30,   # Local Outlier Factor
@@ -137,13 +137,13 @@ ENSEMBLE_WEIGHTS = {
     "AE":  0.20,   # Autoencoder
 }
 
-# Soglie risk label di RIFERIMENTO dalla pipeline classica (anomaly_summary.json).
-# Il multi-agent le ricalcola data-driven (p97/p90) a runtime in OutlierAgent,
-# quindi questi valori servono solo come documentazione del classico.
-THRESHOLD_ALTA_CLASSICAL  = 0.3579   # p97 classico
-THRESHOLD_MEDIA_CLASSICAL = 0.2897   # p90 classico
+# Reference risk-label thresholds from the classical pipeline (anomaly_summary.json).
+# The multi-agent recomputes them data-driven (p97/p90) at runtime in OutlierAgent;
+# these values serve as documentation of the classical baseline only.
+THRESHOLD_ALTA_CLASSICAL  = 0.3579   # classical p97
+THRESHOLD_MEDIA_CLASSICAL = 0.2897   # classical p90
 
-# Feature usate per z-score baseline — stesse del classico (baseline_stats.json)
+# Features used for z-score baseline — same as classical (baseline_stats.json)
 BASELINE_FEATURES = [
     "tot_allarmi_log",
     "pct_interpol",
@@ -158,7 +158,7 @@ BASELINE_FEATURES = [
     "tasso_fermati",
 ]
 
-# Colonne chiave del dataset merged (contratto DataAgent → FeatureAgent)
+# Key columns of the merged dataset (DataAgent → FeatureAgent contract)
 DATASET_MERGED_COLS = [
     "AREOPORTO_ARRIVO", "AREOPORTO_PARTENZA", "ANNO_PARTENZA", "MESE_PARTENZA",
     "PAESE_PART", "ZONA", "TOT", "MOTIVO_ALLARME", "flag_rischio",
@@ -167,7 +167,7 @@ DATASET_MERGED_COLS = [
     "n_respinti", "n_fermati", "n_segnalati",
 ]
 
-# Percorsi file (relativi alla root del progetto)
+# File paths (relative to project root)
 PATHS = {
     "dataset_merged":   "data/processed/dataset_merged.csv",
     "allarmi_clean":    "data/processed/allarmi_clean.csv",

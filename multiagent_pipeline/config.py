@@ -1,4 +1,4 @@
-"""Configurazione centralizzata per pipeline multi-agent."""
+"""Centralised configuration for the multi-agent pipeline."""
 from __future__ import annotations
 
 import os
