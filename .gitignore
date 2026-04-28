@@ -26,16 +26,20 @@ build/
 .ipynb_checkpoints/
 *.ipynb_checkpoints
 
-# ── Data (non caricare dati sensibili su GitHub) ──────────────────
+# ── Data (do not upload sensitive data to GitHub) ─────────────────
 data/raw/*.csv
 data/raw/*.json
 data/raw/*.xlsx
 data/processed/*.csv
 data/processed/*.parquet
+data/processed/*.json
 
-# ── Report generati a runtime ─────────────────────────────────────
+# ── Runtime-generated reports & artifacts ─────────────────────────
 reports/*.html
 reports/*.pdf
+*.docx
+report_*.pdf
+CHECKPOINT_*.docx
 
 # ── VS Code ───────────────────────────────────────────────────────
 .vscode/
