@@ -69,6 +69,9 @@ BASELINE_FEATURES = [
     "score_rischio_esiti",
     "tasso_respinti",
     "tasso_fermati",
+    # Extended features computed by FeatureBuilder (feature_engineering notebooks)
+    "false_positive_rate",
+    "alarm_per_invest",
 ]
 
 ENSEMBLE_WEIGHTS = {"IF": 0.35, "LOF": 0.30, "Z": 0.15, "AE": 0.20}

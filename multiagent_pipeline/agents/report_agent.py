@@ -97,15 +97,15 @@ def format_route_for_llm(row: dict) -> str:
 
     # ── Route context ──────────────────────────────────────────────────────
     return (
-        f"ROTTA: {row.get('ROTTA', 'N/D')} | "
-        f"Paese partenza: {row.get('PAESE_PART', 'N/D')} | "
-        f"Zona: {row.get('ZONA', 'N/D')}\n"
-        f"Livello rischio: {row.get('risk_label', 'N/D')} | "
+        f"ROUTE: {row.get('ROTTA', 'N/A')} | "
+        f"Departure country: {row.get('PAESE_PART', 'N/A')} | "
+        f"Zone: {row.get('ZONA', 'N/A')}\n"
+        f"Risk level: {row.get('risk_label', 'N/A')} | "
         f"Ensemble score: {_fmt(row.get('ensemble_score', 0))}\n"
-        f"Score per modello: {models_str}\n"
-        f"Volumi: allarmi_totali={_fmt(row.get('tot_allarmi_sum'))}, "
-        f"passeggeri_entrati={_fmt(row.get('tot_entrati'))}\n"
-        f"Top 3 driver anomalia (feature più distanti dalla baseline storica):\n"
+        f"Score per model: {models_str}\n"
+        f"Volumes: total_alarms={_fmt(row.get('tot_allarmi_sum'))}, "
+        f"passengers_entered={_fmt(row.get('tot_entrati'))}\n"
+        f"Top 3 anomaly drivers (features furthest from historical baseline):\n"
         f"{drivers_str}"
     )
 

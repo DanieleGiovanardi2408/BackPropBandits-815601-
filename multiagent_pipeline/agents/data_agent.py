@@ -454,7 +454,7 @@ if __name__ == "__main__":
         state = stato_finale
         for agent_name, fn_name, module_path in CHAIN:
             risposta = input(f"\nDo you want to run {agent_name}? [s/N] ").strip().lower()
-            if risposta not in ("s", "si", "sì", "y", "yes"):
+            if risposta not in ("y", "yes"):
                 print(f"  ↳ {agent_name} skipped. Done.")
                 break
             import importlib

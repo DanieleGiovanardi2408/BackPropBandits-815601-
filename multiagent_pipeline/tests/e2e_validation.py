@@ -1,9 +1,9 @@
-"""Validazione end-to-end definitiva per pipeline multi-agent.
+"""End-to-end validation suite for the multi-agent pipeline.
 
-Esegue:
-1) smoke no-LLM (sempre)
-2) regressione base su 3-4 perimetri
-3) smoke LLM opzionale su perimetro piccolo (se abilitato via env)
+Runs:
+1) smoke test, no LLM (always)
+2) base regression across 4 perimeters
+3) optional LLM smoke on a small perimeter (enabled via RUN_LLM_SMOKE env var)
 """
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ def main() -> None:
         "results": [],
     }
 
-    # 1) smoke no-LLM (sempre)
+    # 1) smoke, no LLM
     report["results"].append(
         _run_case(
             "smoke_no_llm",
@@ -67,7 +67,7 @@ def main() -> None:
         )
     )
 
-    # 2) regressione base su 4 perimetri
+    # 2) base regression across 4 perimeters
     regression_cases = [
         ("reg_2024_all", {"anno": 2024}),
         ("reg_2024_algeria", {"anno": 2024, "paese_partenza": "Algeria"}),
@@ -79,7 +79,7 @@ def main() -> None:
             _run_case(name, perimeter, run_report=False, use_llm=False, dry_run=True)
         )
 
-    # 3) smoke LLM opzionale su perimetro piccolo
+    # 3) optional LLM smoke on a small perimeter
     if run_llm_smoke:
         report["results"].append(
             _run_case(
@@ -100,7 +100,7 @@ def main() -> None:
 
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUT_PATH.write_text(json.dumps(report, indent=2, ensure_ascii=False))
-    print(f"[E2E] report salvato in: {OUT_PATH}")
+    print(f"[E2E] report saved to: {OUT_PATH}")
     print(f"[E2E] summary: {report['summary']}")
 
 
