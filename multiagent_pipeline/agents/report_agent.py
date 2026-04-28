@@ -116,15 +116,21 @@ def generate_explanation(context: str, llm: ChatAnthropic) -> str:
     Generates a narrative explanation of the anomalous route using a real LLM.
     The prompt explicitly requires citing the top drivers with their values.
     """
-    prompt = (
-        "Sei un analista rischio aeroportuale. "
-        "Analizza i dati della rotta forniti e spiega in massimo 3 frasi perché è anomala. "
-        "Devi citare OBBLIGATORIAMENTE almeno 2 dei driver di anomalia forniti, "
-        "indicando il nome della feature, il suo valore e la deviazione dalla baseline. "
-        "Non inventare dati non presenti nel contesto.\n\n"
-        f"Dati rotta:\n{context}"
+    system = (
+        "You are an airport security risk analyst. "
+        "You MUST write your response in English only. "
+        "Do not use Italian or any other language, regardless of the language of the input data."
     )
-    response = llm.invoke(prompt)
+    user = (
+        "Analyze the route data below and explain in exactly 2-3 English sentences why this route is anomalous. "
+        "You MUST cite at least 2 of the anomaly drivers listed, including each driver's numeric value "
+        "and its deviation from the baseline (sigma). "
+        "Do not invent or assume any data not explicitly present.\n\n"
+        f"Route data:\n{context}\n\n"
+        "IMPORTANT: Your answer must be in English only."
+    )
+    from langchain_core.messages import SystemMessage, HumanMessage
+    response = llm.invoke([SystemMessage(content=system), HumanMessage(content=user)])
     return response.content.strip()
 
 
@@ -209,8 +215,8 @@ def run_report_agent(
             context = format_route_for_llm(row)
             if llm is None:
                 explanation = (
-                    "Spiegazione LLM non eseguita (dry_run/use_llm=False). "
-                    "Consulta score e driver nel frontend."
+                    "LLM explanation skipped (dry_run / use_llm=False). "
+                    "See ensemble_score, baseline_score and z-score drivers in the dashboard."
                 )
             else:
                 try:
@@ -219,8 +225,8 @@ def run_report_agent(
                     llm_warning = f"LLM call failed ({e}); local fallback activated."
                     logger.warning("ReportAgent -- %s", llm_warning)
                     explanation = (
-                        "Spiegazione LLM non disponibile (errore API). "
-                        "Analizza la rotta usando ensemble_score, baseline_score e i driver z-score."
+                        "LLM explanation unavailable (API error). "
+                        "Analyse the route using ensemble_score, baseline_score and z-score drivers."
                     )
             # Store only key fields in the output JSON (not all 65 columns)
             finding_record = {k: row.get(k) for k in _output_cols if k in row}

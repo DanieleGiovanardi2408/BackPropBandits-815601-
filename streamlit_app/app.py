@@ -9,6 +9,7 @@ import altair as alt
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as _components
 from scipy.stats import pearsonr, spearmanr
 
 # Ensures correct imports when launched with:
@@ -118,30 +119,191 @@ IATA_COORDS: dict[str, tuple[float, float]] = {
 def _inject_style() -> None:
     st.markdown(
         """
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
         <style>
-          .block-container {padding-top: 1.2rem; padding-bottom: 1.2rem; max-width: 1200px;}
-          h1, h2, h3 {letter-spacing: 0.2px;}
-          .stMetric {
-            background: rgba(240,242,246,0.45);
-            border: 1px solid rgba(49,51,63,0.15);
-            border-radius: 12px;
-            padding: 10px 14px;
+          /* ── Base & typography ─────────────────────────────────────── */
+          html, body, [class*="css"] {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif !important;
           }
+          .block-container {
+            padding-top: 1.4rem !important;
+            padding-bottom: 2rem !important;
+            max-width: 1280px !important;
+          }
+          h1, h2, h3 {
+            font-family: 'Inter', system-ui, sans-serif !important;
+            letter-spacing: -0.3px !important;
+            font-weight: 800 !important;
+          }
+
+          /* ── Sidebar ───────────────────────────────────────────────── */
+          [data-testid="stSidebar"] {
+            background: linear-gradient(180deg, #060d1a 0%, #0a1220 100%) !important;
+            border-right: 1px solid rgba(14,165,233,0.1) !important;
+          }
+          [data-testid="stSidebar"] h1,
+          [data-testid="stSidebar"] h2,
+          [data-testid="stSidebar"] h3,
+          [data-testid="stSidebar"] label {
+            color: #cbd5e1 !important;
+          }
+          /* Primary run button */
+          [data-testid="stSidebar"] [data-testid="stButton"] > button[kind="primary"],
+          [data-testid="stSidebar"] div[data-testid="stButton"] button {
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%) !important;
+            border: none !important;
+            border-radius: 10px !important;
+            font-weight: 700 !important;
+            font-size: 0.92rem !important;
+            letter-spacing: 0.2px !important;
+            color: #fff !important;
+            box-shadow: 0 0 20px rgba(14,165,233,0.25), 0 4px 12px rgba(0,0,0,0.3) !important;
+            transition: box-shadow 0.2s ease, transform 0.15s ease !important;
+          }
+          [data-testid="stSidebar"] div[data-testid="stButton"] button:hover {
+            box-shadow: 0 0 32px rgba(14,165,233,0.45), 0 6px 20px rgba(0,0,0,0.35) !important;
+            transform: translateY(-1px) !important;
+          }
+
+          /* ── Metric cards ──────────────────────────────────────────── */
+          [data-testid="metric-container"] {
+            background: linear-gradient(135deg,
+              rgba(14,165,233,0.07) 0%,
+              rgba(15,23,42,0.92) 100%) !important;
+            border: 1px solid rgba(14,165,233,0.18) !important;
+            border-radius: 12px !important;
+            padding: 14px 18px !important;
+            backdrop-filter: blur(8px) !important;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+          }
+          [data-testid="metric-container"]:hover {
+            border-color: rgba(14,165,233,0.35) !important;
+            box-shadow: 0 0 20px rgba(14,165,233,0.1) !important;
+          }
+          [data-testid="stMetricLabel"] {
+            font-size: 0.7rem !important;
+            font-weight: 600 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.8px !important;
+            color: #64748b !important;
+          }
+          [data-testid="stMetricValue"] {
+            font-size: 1.6rem !important;
+            font-weight: 800 !important;
+            color: #f1f5f9 !important;
+          }
+
+          /* ── Tabs ──────────────────────────────────────────────────── */
+          .stTabs [data-baseweb="tab-list"] {
+            background: rgba(6,13,26,0.9) !important;
+            border-radius: 12px !important;
+            padding: 4px 5px !important;
+            border: 1px solid rgba(30,41,59,0.7) !important;
+            gap: 2px !important;
+          }
+          .stTabs [data-baseweb="tab"] {
+            border-radius: 8px !important;
+            font-weight: 500 !important;
+            font-size: 0.83rem !important;
+            color: #475569 !important;
+            padding: 7px 14px !important;
+            transition: color 0.15s ease, background 0.15s ease !important;
+          }
+          .stTabs [data-baseweb="tab"]:hover {
+            color: #94a3b8 !important;
+            background: rgba(30,41,59,0.6) !important;
+          }
+          .stTabs [aria-selected="true"] {
+            background: rgba(14,165,233,0.12) !important;
+            color: #38bdf8 !important;
+            border: 1px solid rgba(14,165,233,0.25) !important;
+          }
+          .stTabs [data-baseweb="tab-panel"] {
+            padding-top: 20px !important;
+          }
+
+          /* ── Dataframes ────────────────────────────────────────────── */
+          [data-testid="stDataFrame"] {
+            border-radius: 10px !important;
+            overflow: hidden !important;
+            border: 1px solid rgba(30,41,59,0.7) !important;
+          }
+
+          /* ── Status / alerts ───────────────────────────────────────── */
+          [data-testid="stAlert"] {
+            border-radius: 10px !important;
+          }
+          [data-testid="stStatusWidget"] {
+            border-radius: 12px !important;
+          }
+
+          /* ── Expanders ─────────────────────────────────────────────── */
+          [data-testid="stExpander"] {
+            border: 1px solid rgba(30,41,59,0.6) !important;
+            border-radius: 10px !important;
+            background: rgba(15,23,42,0.5) !important;
+          }
+
+          /* ── Download button ───────────────────────────────────────── */
+          [data-testid="stDownloadButton"] > button {
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            font-size: 0.82rem !important;
+            border: 1px solid rgba(30,41,59,0.8) !important;
+            color: #94a3b8 !important;
+            background: rgba(15,23,42,0.8) !important;
+            transition: border-color 0.2s, color 0.2s !important;
+          }
+          [data-testid="stDownloadButton"] > button:hover {
+            border-color: rgba(14,165,233,0.4) !important;
+            color: #38bdf8 !important;
+          }
+
+          /* ── Selectbox / widgets ───────────────────────────────────── */
+          [data-testid="stSelectbox"] > div > div {
+            border-radius: 8px !important;
+            border-color: rgba(30,41,59,0.8) !important;
+          }
+
+          /* ── Custom classes ────────────────────────────────────────── */
           .chip {
-            display: inline-block;
-            padding: 4px 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 12px;
             border-radius: 999px;
-            border: 1px solid rgba(49,51,63,0.25);
-            font-size: 0.82rem;
+            font-size: 0.76rem;
+            font-weight: 600;
             margin-right: 6px;
+            letter-spacing: 0.3px;
           }
-          .ok  { background: rgba(44, 182, 125, 0.12); }
-          .err { background: rgba(240, 80,  83, 0.12); }
+          .ok  {
+            background: rgba(34,197,94,0.1);
+            border: 1px solid rgba(34,197,94,0.3);
+            color: #4ade80;
+          }
+          .err {
+            background: rgba(239,68,68,0.1);
+            border: 1px solid rgba(239,68,68,0.3);
+            color: #f87171;
+          }
           .section-card {
-            border: 1px solid rgba(49,51,63,0.15);
+            border: 1px solid rgba(30,41,59,0.7);
             border-radius: 12px;
-            padding: 12px 14px;
-            background: rgba(255,255,255,0.02);
+            padding: 14px 18px;
+            background: linear-gradient(135deg, rgba(14,165,233,0.05), rgba(15,23,42,0.9));
+            font-size: 0.88rem;
+            color: #94a3b8;
+          }
+          .section-card b { color: #cbd5e1; }
+
+          /* ── Dividers ──────────────────────────────────────────────── */
+          hr {
+            border-color: rgba(30,41,59,0.6) !important;
+            margin: 16px 0 !important;
           }
         </style>
         """,
@@ -268,6 +430,66 @@ def _render_pipeline_graph_html(active_step: int, stage_errors: dict | None = No
     """
 
 
+# ─────────────────── Agent graph via React + Babel CDN ───────────────────────
+
+def _render_agent_graph_html(active_step: int = -1, stage_errors: dict | None = None) -> str:
+    """Embeds agent_graph.jsx via React 18 + Babel standalone (CDN).
+
+    Patches the JSX source at runtime:
+      - Replaces ES6 imports with UMD globals (React is a global on the page)
+      - Injects _PIPELINE_STEP and _PIPELINE_ERRORS variables
+      - Removes 'export default'
+    """
+    jsx_path = Path(__file__).parent / "agent_graph.jsx"
+    try:
+        jsx_content = jsx_path.read_text(encoding="utf-8")
+    except Exception:
+        return "<div style='color:#64748b;padding:20px;font-family:sans-serif;'>Agent graph unavailable.</div>"
+
+    # Patch imports → UMD globals (React 18 UMD exposes window.React)
+    jsx_content = jsx_content.replace(
+        'import { useState, useEffect, useRef } from "react";',
+        'const { useState, useEffect, useRef } = React;',
+    )
+    # Remove export default so the function is available globally
+    jsx_content = jsx_content.replace(
+        'export default function AgentGraph()',
+        'function AgentGraph()',
+    )
+    # Inject active step into initial state so the graph starts at the right position
+    jsx_content = jsx_content.replace(
+        'const [activeStep, setActiveStep] = useState(-1);',
+        'const [activeStep, setActiveStep] = useState(typeof _PIPELINE_STEP !== "undefined" ? _PIPELINE_STEP : -1);',
+    )
+
+    errors_json = json.dumps(stage_errors or {})
+
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{ margin: 0; padding: 0; background: transparent; overflow-y: auto; }}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var _PIPELINE_STEP = {active_step};
+  var _PIPELINE_ERRORS = {errors_json};
+</script>
+<script type="text/babel">
+{jsx_content}
+ReactDOM.createRoot(document.getElementById('root')).render(<AgentGraph />);
+</script>
+</body>
+</html>"""
+
+
 # ─────────────────────── Live pipeline runner ─────────────────────────────────
 
 def _run_pipeline_with_live_ui(
@@ -321,21 +543,13 @@ def _run_pipeline_with_live_ui(
         agent_stages.append(("report", "ReportAgent", 4, _run_report, "report"))
 
     # ── UI containers ────────────────────────────────────────────────────────
-    graph_slot   = st.empty()
     stage_errors: dict[str, str]  = {}
     stage_results: dict[str, dict] = {}
     started_at   = time.perf_counter()
     aborted      = False
 
-    graph_slot.markdown(_render_pipeline_graph_html(-1, {}), unsafe_allow_html=True)
-
     with st.status("Running multi-agent pipeline…", expanded=True) as pipeline_status:
         for stage_name, agent_name, step_idx, agent_fn, meta_key in agent_stages:
-            # Highlight the current agent
-            graph_slot.markdown(
-                _render_pipeline_graph_html(step_idx, stage_errors),
-                unsafe_allow_html=True,
-            )
             st.write(f"▶ **{agent_name}** running…")
             t0 = time.perf_counter()
 
@@ -373,11 +587,12 @@ def _run_pipeline_with_live_ui(
         else:
             pipeline_status.update(label="Pipeline completed ✓", state="complete")
 
-    # Show final completed state in graph
+    # Show final agent graph (embedded via React + Babel CDN — iframe-safe)
     n_ok = len([v for v in stage_results.values() if v["ok"]])
-    graph_slot.markdown(
-        _render_pipeline_graph_html(n_ok, stage_errors),
-        unsafe_allow_html=True,
+    _components.html(
+        _render_agent_graph_html(n_ok, stage_errors),
+        height=1120,
+        scrolling=True,
     )
 
     summary = {
@@ -452,18 +667,26 @@ def _make_route_map_figure(
             raw_exp     = findings_by_rotta.get(rotta, {}).get("explanation", "")
             short_exp   = (raw_exp[:160] + "…") if len(raw_exp) > 160 else raw_exp
             hover_extra = (f"<br><br><i>{short_exp}</i>" if short_exp and
-                           not short_exp.startswith("Spiegazione LLM non") else "")
+                           not short_exp.startswith(("LLM explanation skipped", "LLM explanation unavailable")) else "")
             hover = (
                 f"<b>{rotta}</b><br>"
-                f"Rischio: <b style='color:{_RISK_COLORS[risk]}'>{risk}</b><br>"
+                f"Risk: <b style='color:{_RISK_COLORS[risk]}'>{risk}</b><br>"
                 f"Score: {score:.3f}"
                 f"{hover_extra}"
             )
             traces.append(go.Scattergeo(
                 lat=[lat_dep, lat_arr],
                 lon=[lon_dep, lon_arr],
-                mode="lines",
+                mode="lines+markers",
                 line=dict(width=_RISK_WIDTHS[risk], color=_RISK_COLORS[risk]),
+                # size=[12, 0] → visible clickable dot only at departure (index 0)
+                marker=dict(
+                    size=[12, 0],
+                    color=_RISK_COLORS[risk],
+                    opacity=0.9,
+                    symbol="circle",
+                    line=dict(width=1.5, color="white"),
+                ),
                 opacity=_RISK_OPACITY[risk],
                 hovertemplate=hover + "<extra></extra>",
                 name=rotta,
@@ -495,11 +718,11 @@ def _make_route_map_figure(
             lat=[IATA_COORDS[a][0] for a in arr_apts],
             lon=[IATA_COORDS[a][1] for a in arr_apts],
             mode="markers+text",
-            marker=dict(size=7, color="#60a5fa", symbol="circle",
-                        line=dict(width=1.5, color="#1d4ed8")),
+            marker=dict(size=14, color="#22d3ee", symbol="diamond",
+                        line=dict(width=1.5, color="#0e7490")),
             text=list(arr_apts),
             textposition="top right",
-            textfont=dict(size=8, color="#93c5fd"),
+            textfont=dict(size=9, color="#67e8f9"),
             hovertext=[f"🇮🇹 {a}" for a in arr_apts],
             hoverinfo="text",
             name="Aeroporti IT",
@@ -546,13 +769,13 @@ def _make_route_map_figure(
 def _show_route_map_tab(df_anom: pd.DataFrame | None, report_obj: dict | None) -> None:
     st.markdown("### Risk Route Map")
     st.caption(
-        "Archi colorati per livello di rischio. "
-        "**Hover** su una rotta per il dettaglio — "
-        "**clicca** o usa il selettore per l'analisi completa con spiegazione LLM."
+        "Arcs coloured by risk level. "
+        "**Hover** over a route for a quick summary — "
+        "**click** or use the selector below for the full LLM analysis."
     )
 
     if df_anom is None or df_anom.empty:
-        st.info("Esegui il pipeline per visualizzare la mappa delle rotte.")
+        st.info("Run the pipeline to visualise the route map.")
         return
 
     findings_by_rotta: dict = {}
@@ -576,7 +799,7 @@ def _show_route_map_tab(df_anom: pd.DataFrame | None, report_obj: dict | None) -
         c1.metric("ALTA",    int(counts.get("ALTA",    0)))
         c2.metric("MEDIA",   int(counts.get("MEDIA",   0)))
         c3.metric("NORMALE", int(counts.get("NORMALE", 0)))
-        c4.metric("Rotte mappate", total_mapped)
+        c4.metric("Mapped routes", total_mapped)
 
     fig, clickable_routes = _make_route_map_figure(df_anom, findings_by_rotta)
 
@@ -603,18 +826,18 @@ def _show_route_map_tab(df_anom: pd.DataFrame | None, report_obj: dict | None) -
             .dropna().tolist()
         )
         if not high_risk_routes:
-            st.info("Nessuna rotta ALTA/MEDIA nel dataset corrente.")
+            st.info("No HIGH/MEDIUM risk routes in the current dataset.")
             return
 
         st.markdown("---")
-        st.markdown("#### Dettaglio rotta ALTA / MEDIA")
+        st.markdown("#### Route Detail — HIGH / MEDIUM risk")
 
         default_idx = 0
         if selected_route and selected_route in high_risk_routes:
             default_idx = high_risk_routes.index(selected_route)
 
         sel = st.selectbox(
-            "Seleziona rotta",
+            "Select route",
             options=high_risk_routes,
             index=default_idx,
             key="route_detail_selector",
@@ -622,33 +845,34 @@ def _show_route_map_tab(df_anom: pd.DataFrame | None, report_obj: dict | None) -
 
         if sel:
             row = df_anom[df_anom["ROTTA"] == sel].iloc[0]
-            risk  = row.get(risk_col, "N/D")
+            risk  = row.get(risk_col, "N/A")
             score_val = (
                 row.get("ensemble_score") or row.get("anomaly_score") or 0
             )
-            paese = row.get("PAESE_PART", "N/D")
+            paese = row.get("PAESE_PART", "N/A")
 
             col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Rotta",   sel)
-            col2.metric("Paese",   paese)
-            col3.metric("Rischio", risk)
+            col1.metric("Route",   sel)
+            col2.metric("Country", paese)
+            col3.metric("Risk",    risk)
             col4.metric("Score",   f"{float(score_val):.3f}")
 
             # LLM explanation
+            _PLACEHOLDER_PREFIXES = ("LLM explanation skipped", "LLM explanation unavailable")
             if sel in findings_by_rotta:
                 exp = findings_by_rotta[sel].get("explanation", "")
-                if exp and not exp.startswith("Spiegazione LLM non"):
-                    st.markdown("**Analisi LLM:**")
+                if exp and not exp.startswith(_PLACEHOLDER_PREFIXES):
+                    st.markdown("**LLM Analysis:**")
                     st.info(exp)
                 else:
                     st.caption(
-                        "Spiegazione LLM non disponibile per questa rotta. "
-                        "Abilita il ReportAgent con 'Enable LLM Report'."
+                        "LLM explanation not available for this route. "
+                        "Enable the ReportAgent with **Enable LLM Report** and re-run."
                     )
             else:
                 st.caption(
-                    "Spiegazione LLM non disponibile — esegui il pipeline con "
-                    "'Enable LLM Report' attivo."
+                    "No LLM explanation available — run the pipeline with "
+                    "**Enable LLM Report** checked."
                 )
 
             # Key metrics
@@ -658,10 +882,10 @@ def _show_route_map_tab(df_anom: pd.DataFrame | None, report_obj: dict | None) -
                 "pct_interpol", "pct_sdi", "pct_nsis", "tasso_respinti",
             ] if c in df_anom.columns]
             if metric_cols:
-                with st.expander("Metriche dettagliate"):
+                with st.expander("Detailed metrics"):
                     metrics_df = pd.DataFrame({
                         "Feature": metric_cols,
-                        "Valore":  [round(float(row.get(c) or 0), 4) for c in metric_cols],
+                        "Value":   [round(float(row.get(c) or 0), 4) for c in metric_cols],
                     })
                     st.dataframe(metrics_df, use_container_width=True, hide_index=True)
 
@@ -772,12 +996,67 @@ def main() -> None:
 
     options = _load_filter_options()
 
-    st.title("Airport Risk Intelligence")
-    st.caption("Multi-agent pipeline with unified orchestrator and operational report.")
+    st.markdown("""
+<div style="
+  background: linear-gradient(135deg, rgba(14,165,233,0.07) 0%, rgba(6,13,26,0.97) 100%);
+  border: 1px solid rgba(14,165,233,0.15);
+  border-radius: 18px;
+  padding: 26px 32px 22px;
+  margin-bottom: 22px;
+  position: relative;
+  overflow: hidden;
+">
+  <div style="
+    position:absolute; top:-40px; right:-60px; width:260px; height:260px; border-radius:50%;
+    background: radial-gradient(circle, rgba(14,165,233,0.10) 0%, transparent 70%);
+    pointer-events:none;
+  "></div>
+  <div style="position:relative; display:flex; align-items:center; gap:16px;">
+    <div style="
+      width:52px; height:52px; border-radius:14px; flex-shrink:0;
+      background: linear-gradient(135deg, rgba(14,165,233,0.18), rgba(2,132,199,0.1));
+      border: 1px solid rgba(14,165,233,0.3);
+      display:flex; align-items:center; justify-content:center;
+      font-size:26px;
+    ">✈️</div>
+    <div>
+      <div style="
+        font-size:22px; font-weight:900; letter-spacing:-0.4px;
+        background: linear-gradient(135deg, #f1f5f9 30%, #7dd3fc 100%);
+        -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+        font-family:'Inter',system-ui,sans-serif;
+      ">Airport Risk Intelligence</div>
+      <div style="margin-top:4px; font-size:12.5px; color:#475569; font-family:'Inter',system-ui,sans-serif;">
+        Multi-agent anomaly detection &nbsp;·&nbsp; LangGraph orchestration &nbsp;·&nbsp; Reply × LUISS 2026
+      </div>
+    </div>
+    <div style="margin-left:auto; display:flex; gap:8px; flex-shrink:0;">
+      <span style="
+        padding:4px 11px; border-radius:999px; font-size:10.5px; font-weight:700;
+        letter-spacing:0.5px; font-family:'Inter',system-ui,sans-serif;
+        background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.25); color:#4ade80;
+      ">LIVE</span>
+      <span style="
+        padding:4px 11px; border-radius:999px; font-size:10.5px; font-weight:700;
+        letter-spacing:0.5px; font-family:'Inter',system-ui,sans-serif;
+        background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.25); color:#c084fc;
+      ">LLM-POWERED</span>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
     # ── Sidebar ───────────────────────────────────────────────────────────────
     with st.sidebar:
-        st.header("Configuration")
+        st.markdown("""
+<div style="
+  padding: 12px 0 8px;
+  font-size:11px; font-weight:700; letter-spacing:1.4px;
+  text-transform:uppercase; color:#475569;
+  font-family:'Inter',system-ui,sans-serif;
+  border-bottom:1px solid rgba(30,41,59,0.6);
+  margin-bottom:14px;
+">⚙️ &nbsp;Configuration</div>""", unsafe_allow_html=True)
 
         use_anno = st.checkbox("Filter by year", value=True)
         anno     = st.selectbox("Year", options["anni"], index=0, disabled=not use_anno)
@@ -820,7 +1099,13 @@ def main() -> None:
             st.warning("`ANTHROPIC_API_KEY` not set — LLM report automatically disabled.")
             run_report = False
 
-        st.subheader("Pipeline execution")
+        st.markdown("""
+<div style="display:flex;align-items:center;gap:10px;margin:8px 0 14px;">
+  <div style="width:3px;height:22px;border-radius:2px;background:linear-gradient(180deg,#0ea5e9,#0284c7);flex-shrink:0;"></div>
+  <span style="font-size:17px;font-weight:700;color:#e2e8f0;font-family:'Inter',system-ui,sans-serif;letter-spacing:-0.2px;">
+    Pipeline Execution
+  </span>
+</div>""", unsafe_allow_html=True)
         state, summary = _run_pipeline_with_live_ui(
             perimeter=perimeter,
             run_report=run_report,
@@ -831,7 +1116,13 @@ def main() -> None:
         )
         elapsed_s = summary["runtime_s"]
 
-        st.subheader("Pipeline status")
+        st.markdown("""
+<div style="display:flex;align-items:center;gap:10px;margin:18px 0 10px;">
+  <div style="width:3px;height:22px;border-radius:2px;background:linear-gradient(180deg,#22c55e,#16a34a);flex-shrink:0;"></div>
+  <span style="font-size:17px;font-weight:700;color:#e2e8f0;font-family:'Inter',system-ui,sans-serif;letter-spacing:-0.2px;">
+    Pipeline Status
+  </span>
+</div>""", unsafe_allow_html=True)
         _render_stage_badges(summary)
 
         completed = len(summary.get("completed_stages", []))
@@ -1090,7 +1381,25 @@ def main() -> None:
                 "report_path":   state.get("report_path"),
             })
     else:
-        st.info("Configure filters from the sidebar and click **Run pipeline**.")
+        st.markdown("""
+<div style="
+  margin-top:32px;
+  background: linear-gradient(135deg, rgba(14,165,233,0.05), rgba(15,23,42,0.7));
+  border: 1px dashed rgba(14,165,233,0.2);
+  border-radius: 16px;
+  padding: 48px 32px;
+  text-align: center;
+">
+  <div style="font-size:40px;margin-bottom:16px;">🛫</div>
+  <div style="font-size:18px;font-weight:700;color:#e2e8f0;
+              font-family:'Inter',system-ui,sans-serif;margin-bottom:8px;">
+    Ready to analyse
+  </div>
+  <div style="font-size:13px;color:#475569;font-family:'Inter',system-ui,sans-serif;max-width:380px;margin:0 auto;">
+    Configure filters in the sidebar, then click <b style="color:#38bdf8">Run pipeline</b> to start the multi-agent anomaly detection.
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
