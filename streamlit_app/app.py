@@ -7,6 +7,7 @@ from pathlib import Path
 
 import altair as alt
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 from scipy.stats import pearsonr, spearmanr
 
@@ -27,6 +28,92 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ─────────────────────────────── IATA Coordinates ────────────────────────────
+# (lat, lon) for every airport that appears in the dataset routes
+IATA_COORDS: dict[str, tuple[float, float]] = {
+    # ── Italian arrival airports ──────────────────────────────────────────────
+    "AOI": (43.6163, 13.3622), "BDS": (40.6576, 17.9470), "BGY": (45.6739,  9.7046),
+    "BLQ": (44.5354, 11.2887), "BRI": (41.1389, 16.7606), "BZO": (46.4603, 11.3264),
+    "CAG": (39.2515,  9.0543), "CIA": (41.7994, 12.5949), "CIY": (36.9962, 14.6071),
+    "CTA": (37.4667, 15.0664), "CUF": (44.5470,  7.6232), "FCO": (41.8003, 12.2389),
+    "FLR": (43.8100, 11.2051), "GOA": (44.4133,  8.8375), "LIN": (45.4454,  9.2767),
+    "MXP": (45.6306,  8.7281), "NAP": (40.8860, 14.2910), "OLB": (40.8987,  9.5176),
+    "PEG": (43.0991, 12.5132), "PMF": (44.8246, 10.2964), "PMO": (38.1796, 13.0913),
+    "PSA": (43.6836, 10.3927), "PSR": (42.4317, 14.1811), "REG": (38.0712, 15.6516),
+    "RMI": (44.0204, 12.6117), "SUF": (38.9057, 16.2423), "TRN": (45.2009,  7.6497),
+    "TRS": (45.8275, 13.4722), "TSF": (45.6484, 12.1944), "VBS": (45.4282, 10.3306),
+    "VCE": (45.5053, 12.3519), "VRN": (45.3957, 10.8885),
+    # ── International departure airports ─────────────────────────────────────
+    "ABJ": ( 5.2613,  -3.9262), "ADB": (38.2924,  27.1570), "ADD": ( 8.9779,  38.7993),
+    "ADL": (-34.945, 138.5311), "AER": (43.4499,  39.9566), "AGA": (30.3250,  -9.4130),
+    "AKL": (-37.008, 174.7917), "ALA": (43.3521,  77.0405), "ALG": (36.6910,   3.2154),
+    "AMD": (23.0772,  72.6347), "AMM": (31.7226,  35.9932), "ANU": (17.1368, -61.7927),
+    "ARN": (59.6519,  17.9186), "ASB": (37.9868,  58.3610), "ASM": (15.2954,  38.9107),
+    "ATL": (33.6407, -84.4277), "ATQ": (31.7096,  74.7973), "AUH": (24.4330,  54.6511),
+    "AYT": (36.8987,  30.7995), "BAH": (26.2708,  50.6336), "BEG": (44.8184,  20.3091),
+    "BEY": (33.8208,  35.4884), "BFS": (54.6575,  -6.2158), "BHX": (52.4539,  -1.7480),
+    "BKK": (13.6811, 100.7470), "BLR": (13.1979,  77.7063), "BNA": (36.1245, -86.6782),
+    "BNE": (-27.384, 153.1175), "BOG": ( 4.7016, -74.1469), "BOS": (42.3656, -71.0096),
+    "BQH": (51.3382,   0.0313), "BRS": (51.3827,  -2.7191), "BSB": (-15.871, -47.9186),
+    "BUF": (42.9405, -78.7322), "CAI": (30.1219,  31.4056), "CAN": (23.3924, 113.2988),
+    "CEB": (10.3075, 123.9790), "CGK": (-6.1256, 106.6558), "CGO": (34.5197, 113.8408),
+    "CKG": (29.7192, 106.6417), "CLE": (41.4117, -81.8498), "CMN": (33.3675,  -7.5897),
+    "CUN": (21.0365, -86.8771), "CVG": (39.0489, -84.6678), "DAR": (-6.8781,  39.2026),
+    "DEL": (28.5665,  77.1031), "DFW": (32.8998, -97.0403), "DMM": (26.4712,  49.7979),
+    "DOH": (25.2607,  51.6138), "DPS": (-8.7483, 115.1670), "DSS": (14.6700, -17.0727),
+    "DTW": (42.2124, -83.3534), "DUR": (-29.614,  31.1197), "DWC": (24.8963,  55.1614),
+    "DXB": (25.2532,  55.3657), "EDI": (55.9500,  -3.3725), "ELQ": (26.3023,  43.7742),
+    "EMA": (52.8311,  -1.3280), "ESB": (40.1281,  32.9951), "EVN": (40.1473,  44.3959),
+    "EWR": (40.6925, -74.1687), "EZE": (-34.822, -58.5358), "FAB": (51.2788,  -0.7764),
+    "FEZ": (33.9273,  -4.9779), "FIH": (-4.3857,  15.4446), "FLL": (26.0726, -80.1527),
+    "FRA": (50.0379,   8.5622), "FRU": (43.0613,  74.4776), "FUK": (33.5859, 130.4508),
+    "GIG": (-22.810, -43.2505), "GLA": (55.8642,  -4.4330), "GRU": (-23.436, -46.4731),
+    "GYD": (40.4675,  50.0467), "GZT": (36.9473,  37.4786), "HAN": (21.2212, 105.8072),
+    "HGH": (30.2295, 120.4298), "HKG": (22.3080, 113.9185), "HKT": ( 8.1132,  98.3169),
+    "HND": (35.5494, 139.7798), "HRG": (27.1783,  33.7994), "IAD": (38.9531, -77.4565),
+    "IAH": (29.9844, -95.3414), "ICN": (37.4691, 126.4510), "IFN": (32.7508,  51.8613),
+    "IKA": (35.4161,  51.1522), "ISB": (33.6167,  73.1000), "ISL": (40.9769,  28.8146),
+    "IST": (41.2758,  28.7519), "JAX": (30.4941, -81.6879), "JED": (21.6796,  39.1565),
+    "JFK": (40.6413, -73.7781), "KBL": (34.5659,  69.2123), "KCH": ( 1.4847, 110.3373),
+    "KIV": (46.9277,  28.9305), "KUL": ( 2.7456, 101.7099), "KUT": (42.1763,  42.4826),
+    "KWI": (29.2267,  47.9689), "KZN": (55.6062,  49.2787), "LAD": (-8.8587,  13.2312),
+    "LAS": (36.0840, -115.154), "LAX": (33.9425,-118.4081), "LBA": (53.8659,  -1.6606),
+    "LCY": (51.5053,   0.0553), "LGW": (51.1537,  -0.1821), "LHR": (51.4706,  -0.4619),
+    "LOS": ( 6.5774,   3.3212), "LPL": (53.3336,  -2.8497), "LRM": (18.2742, -69.1683),
+    "LTN": (51.8747,  -0.3683), "LXR": (25.6712,  32.7066), "LYX": (50.9561,   0.9392),
+    "MAN": (53.3537,  -2.2750), "MBA": (-4.0348,  39.5942), "MBJ": (18.5037, -77.9134),
+    "MCT": (23.5932,  58.2844), "MED": (24.5534,  39.7051), "MEL": (-37.669, 144.8410),
+    "MEX": (19.4363, -99.0721), "MHD": (36.2352,  59.6411), "MIA": (25.7959, -80.2870),
+    "MJI": (32.8943,  13.2791), "MLE": ( 4.1918,  73.5290), "MNL": (14.5086, 121.0194),
+    "MPM": (-25.921,  32.5726), "MRU": (-20.430,  57.6836), "MYR": (33.6797, -78.9283),
+    "NAV": (38.9192,  34.5346), "NBO": (-1.3192,  36.9275), "NCL": (55.0375,  -1.6917),
+    "NHT": (51.5533,  -0.4186), "NKG": (31.7420, 118.8620), "NOS": (-13.312,  48.3148),
+    "NRT": (35.7648, 140.3864), "NSI": ( 3.7226,  11.5531), "OAK": (37.7213,-122.2208),
+    "ORD": (41.9742, -87.9073), "OUA": (12.3532,  -1.5124), "OXB": (11.8948, -15.6537),
+    "OXF": (51.8368,  -1.3200), "PEK": (40.0799, 116.6031), "PER": (-31.940, 115.9669),
+    "PEW": (33.9939,  71.5146), "PHL": (39.8729, -75.2437), "PKX": (39.5097, 116.4104),
+    "POA": (-29.994, -51.1714), "PRN": (42.5728,  21.0358), "PVG": (31.1443, 121.8083),
+    "PVR": (20.6801,-105.2544), "RAK": (31.6069,  -8.0363), "RBA": (34.0510,  -6.7516),
+    "REC": (-8.1265, -34.9232), "RMF": (23.4353,  36.2856), "RMO": (50.3889,  28.7383),
+    "RUH": (24.9578,  46.6989), "SAW": (40.8985,  29.3092), "SCL": (-33.393, -70.7858),
+    "SDU": (-22.911, -43.1631), "SGN": (10.8188, 106.6520), "SHJ": (25.3286,  55.5172),
+    "SID": (16.7414, -22.9494), "SIN": ( 1.3644, 103.9915), "SJJ": (43.8246,  18.3315),
+    "SKG": (40.5197,  22.9709), "SKP": (41.9616,  21.6214), "SKT": (32.5356,  74.3636),
+    "SLL": (17.0386,  54.0913), "SMF": (38.6954,-121.5908), "SOF": (42.6967,  23.4114),
+    "SPX": (30.0792,  31.0111), "SSA": (-12.909, -38.3225), "SSH": (27.9773,  34.3950),
+    "STN": (51.8860,   0.2389), "SVO": (55.9726,  37.4146), "SYD": (-33.940, 151.1753),
+    "SYR": (43.1112, -76.1063), "SYZ": (29.5392,  52.5898), "SZX": (22.6393, 113.8107),
+    "TAS": (41.2579,  69.2813), "TBS": (41.6692,  44.9547), "TFU": (30.5795, 103.8966),
+    "TGD": (42.3594,  19.2519), "TIA": (41.4147,  19.7206), "TLV": (32.0114,  34.8867),
+    "TNG": (35.7269,  -5.9169), "TPA": (27.9755, -82.5332), "TPE": (25.0777, 121.2322),
+    "TSA": (25.0694, 121.5524), "TUN": (36.8510,  10.2272), "VKO": (55.5965,  37.2615),
+    "WNZ": (27.9122, 120.6519), "YEG": (53.3097,-113.5797), "YHZ": (44.8808, -63.5086),
+    "YUL": (45.4706, -73.7408), "YVR": (49.1947,-123.1792), "YWG": (49.9100, -97.2398),
+    "YYC": (51.1315,-114.0106), "YYZ": (43.6777, -79.6248), "ZNZ": (-6.2220,  39.2248),
+}
+
+
+# ──────────────────────────── Shared CSS ─────────────────────────────────────
 
 def _inject_style() -> None:
     st.markdown(
@@ -48,8 +135,8 @@ def _inject_style() -> None:
             font-size: 0.82rem;
             margin-right: 6px;
           }
-          .ok { background: rgba(44, 182, 125, 0.12); }
-          .err { background: rgba(240, 80, 83, 0.12); }
+          .ok  { background: rgba(44, 182, 125, 0.12); }
+          .err { background: rgba(240, 80,  83, 0.12); }
           .section-card {
             border: 1px solid rgba(49,51,63,0.15);
             border-radius: 12px;
@@ -61,6 +148,525 @@ def _inject_style() -> None:
         unsafe_allow_html=True,
     )
 
+
+# ─────────────────────────── Pipeline graph HTML ──────────────────────────────
+
+_PIPELINE_AGENTS = [
+    ("data",     "DataAgent",     "#0ea5e9", "Loads & filters CSVs"),
+    ("feature",  "FeatureAgent",  "#22c55e", "Engineers 54 features"),
+    ("baseline", "BaselineAgent", "#f59e0b", "Robust z-scores (MAD)"),
+    ("outlier",  "OutlierAgent",  "#ef4444", "Ensemble detection"),
+    ("report",   "ReportAgent",   "#a855f7", "LLM explanations"),
+]
+
+
+def _render_pipeline_graph_html(active_step: int, stage_errors: dict | None = None) -> str:
+    """
+    Renders the 5-agent pipeline as a pure HTML/CSS card row.
+
+    active_step:
+      -1  → nothing started
+       0  → DataAgent running
+       1  → FeatureAgent running (DataAgent done)
+       …
+       5  → all done
+    """
+    errors = stage_errors or {}
+
+    # Build CSS keyframes for each agent's pulse animation
+    css_keyframes = ""
+    for agent_id, _, color, _ in _PIPELINE_AGENTS:
+        r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+        css_keyframes += f"""
+        @keyframes pulse-{agent_id} {{
+          0%,100% {{ box-shadow: 0 0 6px rgba({r},{g},{b},0.3); }}
+          50%      {{ box-shadow: 0 0 22px rgba({r},{g},{b},0.9),
+                                  0 0 44px rgba({r},{g},{b},0.4); }}
+        }}"""
+
+    cards_html = []
+    for i, (agent_id, label, color, desc) in enumerate(_PIPELINE_AGENTS):
+        has_error = agent_id in errors
+        is_done   = (i < active_step) and not has_error
+        is_active = (i == active_step) and not has_error
+        is_pending = i > active_step and not has_error
+
+        if has_error:
+            border     = "#ef4444"
+            bg         = "rgba(239,68,68,0.10)"
+            label_col  = "#fca5a5"
+            status_ico = '<span style="color:#ef4444;font-size:18px;line-height:1;">✗</span>'
+            anim       = ""
+        elif is_done:
+            border     = color
+            bg         = "rgba(15,23,42,0.85)"
+            label_col  = "#e2e8f0"
+            status_ico = '<span style="color:#22c55e;font-size:18px;line-height:1;">✓</span>'
+            anim       = ""
+        elif is_active:
+            border     = color
+            bg         = "rgba(15,23,42,0.95)"
+            label_col  = "#f8fafc"
+            status_ico = f'<span style="color:{color};font-size:15px;line-height:1;">▶</span>'
+            anim       = f"animation: pulse-{agent_id} 1.8s ease-in-out infinite;"
+        else:  # pending
+            border     = "#1e293b"
+            bg         = "rgba(15,23,42,0.55)"
+            label_col  = "#475569"
+            status_ico = '<span style="color:#334155;font-size:16px;line-height:1;">○</span>'
+            anim       = ""
+
+        card = f"""
+        <div style="flex:1; min-width:100px; max-width:155px;
+                    padding:13px 9px 11px; border-radius:12px;
+                    border:2px solid {border}; background:{bg};
+                    text-align:center; {anim}
+                    transition:border-color 0.4s, background 0.4s;">
+          <div style="font-size:8px; font-weight:700;
+                      color:{color if not is_pending else '#1e293b'};
+                      letter-spacing:1.5px; text-transform:uppercase;">
+            Agent {i + 1}
+          </div>
+          <div style="font-size:12px; font-weight:800; color:{label_col};
+                      margin:5px 0 2px; white-space:nowrap;">
+            {label}
+          </div>
+          <div style="font-size:9px; line-height:1.35;
+                      color:{'#64748b' if not is_pending else '#1e293b'};">
+            {desc}
+          </div>
+          <div style="margin-top:9px;">{status_ico}</div>
+        </div>"""
+        cards_html.append(card)
+
+        if i < len(_PIPELINE_AGENTS) - 1:
+            arrow_color = color if (is_done or is_active) else "#1e293b"
+            cards_html.append(
+                f'<div style="color:{arrow_color}; font-size:18px; font-weight:300;'
+                f' flex-shrink:0; padding:0 3px; align-self:center;'
+                f' transition:color 0.4s;">→</div>'
+            )
+
+    return f"""
+    <style>
+    {css_keyframes}
+    .agent-pipeline {{
+      display: flex;
+      align-items: stretch;
+      gap: 6px;
+      padding: 18px 16px;
+      overflow-x: auto;
+      background: linear-gradient(160deg, #020617 0%, #0f172a 100%);
+      border-radius: 14px;
+      border: 1px solid #1e293b;
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    }}
+    </style>
+    <div class="agent-pipeline">
+      {''.join(cards_html)}
+    </div>
+    """
+
+
+# ─────────────────────── Live pipeline runner ─────────────────────────────────
+
+def _run_pipeline_with_live_ui(
+    perimeter: dict,
+    run_report: bool,
+    use_llm: bool,
+    dry_run: bool,
+    continue_on_error: bool,
+    save_outputs: bool,
+) -> tuple[dict, dict]:
+    """
+    Runs the pipeline agent-by-agent, updating the graph HTML between each step.
+    Returns (final_state, summary) with the same structure as run_pipeline().
+    """
+    from multiagent_pipeline.agents.data_agent import data_agent_node
+    from multiagent_pipeline.agents.feature_agent import run_feature_agent
+    from multiagent_pipeline.agents.baseline_agent import run_baseline_agent
+    from multiagent_pipeline.agents.outlier_agent import run_outlier_agent
+    from multiagent_pipeline.agents.report_agent import run_report_agent
+
+    # ── Initial state ────────────────────────────────────────────────────────
+    state: dict = {
+        "perimeter":      perimeter or {},
+        "df_raw":         None, "df_allarmi":    None,
+        "df_viaggiatori": None, "data_meta":     None,
+        "df_features":    None, "feature_meta":  None,
+        "df_baseline":    None, "baseline_meta": None,
+        "df_anomalies":   None, "anomaly_meta":  None,
+        "report":         None, "report_path":   None,
+    }
+
+    # ── Agent function closures ───────────────────────────────────────────────
+    def _run_data(s):
+        return data_agent_node(s, save_artifacts=save_outputs)
+    def _run_feature(s):
+        return run_feature_agent(s, save_output=save_outputs)
+    def _run_baseline(s):
+        return run_baseline_agent(s, save_output=save_outputs)
+    def _run_outlier(s):
+        return run_outlier_agent(s, save_output=save_outputs)
+    def _run_report(s):
+        return run_report_agent(s, save_output=save_outputs, use_llm=use_llm, dry_run=dry_run)
+
+    agent_stages = [
+        ("data",     "DataAgent",     0, _run_data,    "data_meta"),
+        ("feature",  "FeatureAgent",  1, _run_feature, "feature_meta"),
+        ("baseline", "BaselineAgent", 2, _run_baseline,"baseline_meta"),
+        ("outlier",  "OutlierAgent",  3, _run_outlier, "anomaly_meta"),
+    ]
+    if run_report:
+        agent_stages.append(("report", "ReportAgent", 4, _run_report, "report"))
+
+    # ── UI containers ────────────────────────────────────────────────────────
+    graph_slot   = st.empty()
+    stage_errors: dict[str, str]  = {}
+    stage_results: dict[str, dict] = {}
+    started_at   = time.perf_counter()
+    aborted      = False
+
+    graph_slot.markdown(_render_pipeline_graph_html(-1, {}), unsafe_allow_html=True)
+
+    with st.status("Running multi-agent pipeline…", expanded=True) as pipeline_status:
+        for stage_name, agent_name, step_idx, agent_fn, meta_key in agent_stages:
+            # Highlight the current agent
+            graph_slot.markdown(
+                _render_pipeline_graph_html(step_idx, stage_errors),
+                unsafe_allow_html=True,
+            )
+            st.write(f"▶ **{agent_name}** running…")
+            t0 = time.perf_counter()
+
+            try:
+                result = agent_fn(state)
+                state = result
+                meta    = state.get(meta_key)
+                err     = meta.get("error") if isinstance(meta, dict) else None
+                elapsed = (
+                    meta.get("elapsed_s", round(time.perf_counter() - t0, 2))
+                    if isinstance(meta, dict) else round(time.perf_counter() - t0, 2)
+                )
+                stage_results[stage_name] = {"ok": err is None, "error": err, "elapsed_s": elapsed}
+
+                if err:
+                    stage_errors[stage_name] = err
+                    st.write(f"❌ **{agent_name}** failed — {err}")
+                    if not continue_on_error:
+                        aborted = True
+                        break
+                else:
+                    st.write(f"✅ **{agent_name}** — {elapsed:.2f}s")
+
+            except Exception as exc:
+                elapsed = round(time.perf_counter() - t0, 2)
+                stage_results[stage_name] = {"ok": False, "error": str(exc), "elapsed_s": elapsed}
+                stage_errors[stage_name]  = str(exc)
+                st.write(f"❌ **{agent_name}** exception — {exc}")
+                if not continue_on_error:
+                    aborted = True
+                    break
+
+        if aborted:
+            pipeline_status.update(label="Pipeline stopped (error)", state="error")
+        else:
+            pipeline_status.update(label="Pipeline completed ✓", state="complete")
+
+    # Show final completed state in graph
+    n_ok = len([v for v in stage_results.values() if v["ok"]])
+    graph_slot.markdown(
+        _render_pipeline_graph_html(n_ok, stage_errors),
+        unsafe_allow_html=True,
+    )
+
+    summary = {
+        "perimeter":        perimeter,
+        "report_path":      state.get("report_path"),
+        "stages":           stage_results,
+        "step_errors":      stage_errors,
+        "completed_stages": [k for k, v in stage_results.items() if v["ok"]],
+        "failed_stages":    [k for k, v in stage_results.items() if not v["ok"]],
+        "run_config": {
+            "run_report": run_report, "use_llm": use_llm,
+            "dry_run":    dry_run,    "continue_on_error": continue_on_error,
+            "save_outputs": save_outputs,
+        },
+        "runtime_s": round(time.perf_counter() - started_at, 3),
+    }
+    return state, summary
+
+
+# ─────────────────────────── Route map helpers ───────────────────────────────
+
+_RISK_COLORS  = {"ALTA": "#ef4444", "MEDIA": "#f59e0b", "NORMALE": "#22c55e"}
+_RISK_WIDTHS  = {"ALTA": 2.5,       "MEDIA": 1.5,       "NORMALE": 0.5}
+_RISK_OPACITY = {"ALTA": 0.90,      "MEDIA": 0.65,      "NORMALE": 0.18}
+
+
+def _make_route_map_figure(
+    df: pd.DataFrame,
+    findings_by_rotta: dict | None = None,
+) -> tuple[go.Figure, list[str]]:
+    """
+    Builds a Plotly Scattergeo figure.
+
+    Returns (fig, clickable_routes) where clickable_routes[i] is the ROTTA
+    corresponding to trace i — used to map Plotly click events back to routes.
+    ALTA + MEDIA: one trace per route (hover + click).
+    NORMALE: single batched trace (performance).
+    """
+    findings_by_rotta = findings_by_rotta or {}
+    risk_col = "risk_label" if "risk_label" in df.columns else "anomaly_label"
+
+    traces: list            = []
+    clickable_routes: list[str] = []
+
+    # Sort so ALTA renders on top of NORMALE
+    df_work = df.copy()
+    _ro_map  = {"ALTA": 2, "MEDIA": 1, "NORMALE": 0}
+    df_work["_ro"] = df_work.get(risk_col, pd.Series("NORMALE", index=df.index)).map(_ro_map).fillna(0)
+    df_work = df_work.sort_values("_ro")
+
+    norm_lats: list = []
+    norm_lons: list = []
+
+    for _, row in df_work.iterrows():
+        rotta = str(row.get("ROTTA", ""))
+        parts = rotta.split("-")
+        if len(parts) != 2:
+            continue
+        dep, arr = parts
+        if dep not in IATA_COORDS or arr not in IATA_COORDS:
+            continue
+
+        lat_dep, lon_dep = IATA_COORDS[dep]
+        lat_arr, lon_arr = IATA_COORDS[arr]
+        risk  = str(row.get(risk_col, "NORMALE"))
+        score = float(row.get("ensemble_score") or row.get("anomaly_score") or 0)
+
+        if risk == "NORMALE":
+            norm_lats.extend([lat_dep, lat_arr, None])
+            norm_lons.extend([lon_dep, lon_arr, None])
+        else:
+            raw_exp     = findings_by_rotta.get(rotta, {}).get("explanation", "")
+            short_exp   = (raw_exp[:160] + "…") if len(raw_exp) > 160 else raw_exp
+            hover_extra = (f"<br><br><i>{short_exp}</i>" if short_exp and
+                           not short_exp.startswith("Spiegazione LLM non") else "")
+            hover = (
+                f"<b>{rotta}</b><br>"
+                f"Rischio: <b style='color:{_RISK_COLORS[risk]}'>{risk}</b><br>"
+                f"Score: {score:.3f}"
+                f"{hover_extra}"
+            )
+            traces.append(go.Scattergeo(
+                lat=[lat_dep, lat_arr],
+                lon=[lon_dep, lon_arr],
+                mode="lines",
+                line=dict(width=_RISK_WIDTHS[risk], color=_RISK_COLORS[risk]),
+                opacity=_RISK_OPACITY[risk],
+                hovertemplate=hover + "<extra></extra>",
+                name=rotta,
+                customdata=[rotta, rotta],
+                showlegend=False,
+            ))
+            clickable_routes.append(rotta)
+
+    # NORMALE batch
+    if norm_lats:
+        traces.append(go.Scattergeo(
+            lat=norm_lats, lon=norm_lons,
+            mode="lines",
+            line=dict(width=0.5, color="#22c55e"),
+            opacity=0.13,
+            hoverinfo="skip",
+            name="NORMALE",
+            showlegend=False,
+        ))
+
+    # Italian airport dots
+    arr_apts = {
+        str(r).split("-")[1]
+        for r in df["ROTTA"].dropna()
+        if len(str(r).split("-")) == 2 and str(r).split("-")[1] in IATA_COORDS
+    }
+    if arr_apts:
+        traces.append(go.Scattergeo(
+            lat=[IATA_COORDS[a][0] for a in arr_apts],
+            lon=[IATA_COORDS[a][1] for a in arr_apts],
+            mode="markers+text",
+            marker=dict(size=7, color="#60a5fa", symbol="circle",
+                        line=dict(width=1.5, color="#1d4ed8")),
+            text=list(arr_apts),
+            textposition="top right",
+            textfont=dict(size=8, color="#93c5fd"),
+            hovertext=[f"🇮🇹 {a}" for a in arr_apts],
+            hoverinfo="text",
+            name="Aeroporti IT",
+            showlegend=False,
+        ))
+
+    # Legend dummy traces
+    for label in ["ALTA", "MEDIA", "NORMALE"]:
+        traces.append(go.Scattergeo(
+            lat=[None], lon=[None],
+            mode="lines",
+            line=dict(width=3, color=_RISK_COLORS[label]),
+            name=label,
+        ))
+
+    fig = go.Figure(data=traces)
+    fig.update_layout(
+        height=580,
+        margin=dict(l=0, r=0, t=0, b=0),
+        paper_bgcolor="#0f172a",
+        plot_bgcolor="#0f172a",
+        legend=dict(
+            orientation="h", x=0.5, xanchor="center",
+            y=0.01, yanchor="bottom",
+            bgcolor="rgba(15,23,42,0.8)",
+            bordercolor="#334155", borderwidth=1,
+            font=dict(color="#94a3b8", size=12),
+        ),
+        geo=dict(
+            projection_type="natural earth",
+            showland=True,     landcolor="#1e293b",
+            showocean=True,    oceancolor="#020617",
+            showcountries=True, countrycolor="#0f172a",
+            showframe=False,
+            coastlinecolor="#334155", coastlinewidth=0.5,
+            bgcolor="#0f172a",
+            center=dict(lat=28, lon=18),
+            projection_scale=1.2,
+        ),
+    )
+    return fig, clickable_routes
+
+
+def _show_route_map_tab(df_anom: pd.DataFrame | None, report_obj: dict | None) -> None:
+    st.markdown("### Risk Route Map")
+    st.caption(
+        "Archi colorati per livello di rischio. "
+        "**Hover** su una rotta per il dettaglio — "
+        "**clicca** o usa il selettore per l'analisi completa con spiegazione LLM."
+    )
+
+    if df_anom is None or df_anom.empty:
+        st.info("Esegui il pipeline per visualizzare la mappa delle rotte.")
+        return
+
+    findings_by_rotta: dict = {}
+    if isinstance(report_obj, dict):
+        for f in report_obj.get("findings", []):
+            rotta = f.get("ROTTA", "")
+            if rotta:
+                findings_by_rotta[rotta] = f
+
+    risk_col = "risk_label" if "risk_label" in df_anom.columns else "anomaly_label"
+
+    # KPI header
+    if risk_col in df_anom.columns:
+        counts = df_anom[risk_col].value_counts()
+        total_mapped = sum(
+            1 for r in df_anom["ROTTA"].dropna()
+            if (parts := str(r).split("-")) and len(parts) == 2
+            and parts[0] in IATA_COORDS and parts[1] in IATA_COORDS
+        )
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("ALTA",    int(counts.get("ALTA",    0)))
+        c2.metric("MEDIA",   int(counts.get("MEDIA",   0)))
+        c3.metric("NORMALE", int(counts.get("NORMALE", 0)))
+        c4.metric("Rotte mappate", total_mapped)
+
+    fig, clickable_routes = _make_route_map_figure(df_anom, findings_by_rotta)
+
+    # Render map — use on_select if Streamlit >= 1.35, else fall back
+    selected_route: str | None = None
+    try:
+        event = st.plotly_chart(
+            fig, use_container_width=True, on_select="rerun", key="risk_map"
+        )
+        if event and hasattr(event, "selection") and event.selection.points:
+            pt = event.selection.points[0]
+            idx = pt.get("curve_number", -1)
+            if 0 <= idx < len(clickable_routes):
+                selected_route = clickable_routes[idx]
+    except TypeError:
+        st.plotly_chart(fig, use_container_width=True)
+
+    # Route detail panel
+    if risk_col in df_anom.columns:
+        high_risk_routes = (
+            df_anom[df_anom[risk_col].isin(["ALTA", "MEDIA"])]
+            .sort_values("ensemble_score" if "ensemble_score" in df_anom.columns
+                         else df_anom.columns[0], ascending=False)["ROTTA"]
+            .dropna().tolist()
+        )
+        if not high_risk_routes:
+            st.info("Nessuna rotta ALTA/MEDIA nel dataset corrente.")
+            return
+
+        st.markdown("---")
+        st.markdown("#### Dettaglio rotta ALTA / MEDIA")
+
+        default_idx = 0
+        if selected_route and selected_route in high_risk_routes:
+            default_idx = high_risk_routes.index(selected_route)
+
+        sel = st.selectbox(
+            "Seleziona rotta",
+            options=high_risk_routes,
+            index=default_idx,
+            key="route_detail_selector",
+        )
+
+        if sel:
+            row = df_anom[df_anom["ROTTA"] == sel].iloc[0]
+            risk  = row.get(risk_col, "N/D")
+            score_val = (
+                row.get("ensemble_score") or row.get("anomaly_score") or 0
+            )
+            paese = row.get("PAESE_PART", "N/D")
+
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Rotta",   sel)
+            col2.metric("Paese",   paese)
+            col3.metric("Rischio", risk)
+            col4.metric("Score",   f"{float(score_val):.3f}")
+
+            # LLM explanation
+            if sel in findings_by_rotta:
+                exp = findings_by_rotta[sel].get("explanation", "")
+                if exp and not exp.startswith("Spiegazione LLM non"):
+                    st.markdown("**Analisi LLM:**")
+                    st.info(exp)
+                else:
+                    st.caption(
+                        "Spiegazione LLM non disponibile per questa rotta. "
+                        "Abilita il ReportAgent con 'Enable LLM Report'."
+                    )
+            else:
+                st.caption(
+                    "Spiegazione LLM non disponibile — esegui il pipeline con "
+                    "'Enable LLM Report' attivo."
+                )
+
+            # Key metrics
+            metric_cols = [c for c in [
+                "baseline_score", "ensemble_score", "score_composito",
+                "tasso_fermati", "tasso_rilevanza", "tasso_allarme_medio",
+                "pct_interpol", "pct_sdi", "pct_nsis", "tasso_respinti",
+            ] if c in df_anom.columns]
+            if metric_cols:
+                with st.expander("Metriche dettagliate"):
+                    metrics_df = pd.DataFrame({
+                        "Feature": metric_cols,
+                        "Valore":  [round(float(row.get(c) or 0), 4) for c in metric_cols],
+                    })
+                    st.dataframe(metrics_df, use_container_width=True, hide_index=True)
+
+
+# ──────────────────────────── Misc helpers ────────────────────────────────────
 
 def _build_perimeter(
     anno: int | None,
@@ -88,10 +694,9 @@ def _render_stage_badges(summary: dict) -> None:
     if not stages:
         st.info("No stages executed.")
         return
-
     html = []
     for stage, details in stages.items():
-        css = "ok" if details.get("ok") else "err"
+        css   = "ok" if details.get("ok") else "err"
         label = f"{stage}: {'OK' if details.get('ok') else 'ERROR'}"
         html.append(f"<span class='chip {css}'>{label}</span>")
     st.markdown("".join(html), unsafe_allow_html=True)
@@ -117,45 +722,35 @@ def _load_filter_options() -> dict:
     if not merged_path.exists():
         return {"anni": [2024], "paesi": [], "apt_dep": [], "apt_arr": [], "zone": list(range(1, 10))}
     try:
-        df = pd.read_csv(merged_path)
-        anni = sorted([int(x) for x in df.get("ANNO_PARTENZA", pd.Series(dtype="float")).dropna().unique().tolist()])
-        paesi = sorted([str(x) for x in df.get("PAESE_PART", pd.Series(dtype="object")).dropna().astype(str).unique().tolist()])
-        apt_dep = sorted([str(x) for x in df.get("AREOPORTO_PARTENZA", pd.Series(dtype="object")).dropna().astype(str).unique().tolist()])
-        apt_arr = sorted([str(x) for x in df.get("AREOPORTO_ARRIVO", pd.Series(dtype="object")).dropna().astype(str).unique().tolist()])
-        zone = sorted([int(x) for x in df.get("ZONA", pd.Series(dtype="float")).dropna().unique().tolist()])
+        df   = pd.read_csv(merged_path)
+        anni = sorted([int(x) for x in df.get("ANNO_PARTENZA", pd.Series(dtype="float")).dropna().unique()])
+        paesi   = sorted(df.get("PAESE_PART", pd.Series(dtype="object")).dropna().astype(str).unique().tolist())
+        apt_dep = sorted(df.get("AREOPORTO_PARTENZA", pd.Series(dtype="object")).dropna().astype(str).unique().tolist())
+        apt_arr = sorted(df.get("AREOPORTO_ARRIVO",   pd.Series(dtype="object")).dropna().astype(str).unique().tolist())
+        zone    = sorted([int(x) for x in df.get("ZONA", pd.Series(dtype="float")).dropna().unique()])
         return {
-            "anni": anni or [2024],
-            "paesi": paesi,
+            "anni":    anni    or [2024],
+            "paesi":   paesi,
             "apt_dep": apt_dep,
             "apt_arr": apt_arr,
-            "zone": zone or list(range(1, 10)),
+            "zone":    zone    or list(range(1, 10)),
         }
     except Exception:
         return {"anni": [2024], "paesi": [], "apt_dep": [], "apt_arr": [], "zone": list(range(1, 10))}
 
 
 def _stage_table(summary: dict) -> pd.DataFrame:
-    stages = summary.get("stages", {})
-    rows = []
-    for stage, data in stages.items():
-        rows.append(
-            {
-                "stage": stage,
-                "status": "OK" if data.get("ok") else "ERROR",
-                "error": data.get("error") or "",
-            }
-        )
-    return pd.DataFrame(rows)
+    return pd.DataFrame([
+        {"stage": s, "status": "OK" if d.get("ok") else "ERROR",
+         "elapsed_s": d.get("elapsed_s", ""), "error": d.get("error") or ""}
+        for s, d in summary.get("stages", {}).items()
+    ])
 
 
 @st.cache_data(show_spinner=False)
 def _load_classical_report() -> pd.DataFrame | None:
-    """Load the classical pipeline report (static, pre-computed on full dataset).
-
-    Tries final_report.csv first (output of classical_pipeline/main.py and
-    notebook 05), then falls back to anomaly_results.csv for compatibility
-    with older runs.
-    """
+    """Load the classical pipeline report (pre-computed).
+    Tries final_report.csv first, then anomaly_results.csv."""
     for name in ("final_report.csv", "anomaly_results.csv"):
         cl_path = PROJECT_ROOT / "data" / "processed" / name
         if cl_path.exists():
@@ -166,35 +761,37 @@ def _load_classical_report() -> pd.DataFrame | None:
     return None
 
 
+# ──────────────────────────────── Main ───────────────────────────────────────
+
 def main() -> None:
     _inject_style()
-    if "last_run" not in st.session_state:
-        st.session_state["last_run"] = None
-    if "run_history" not in st.session_state:
-        st.session_state["run_history"] = []
+
+    for key, default in [("last_run", None), ("run_history", [])]:
+        if key not in st.session_state:
+            st.session_state[key] = default
 
     options = _load_filter_options()
 
     st.title("Airport Risk Intelligence")
     st.caption("Multi-agent pipeline with unified orchestrator and operational report.")
 
-    # ── Sidebar ──────────────────────────────────────────────────────────────
+    # ── Sidebar ───────────────────────────────────────────────────────────────
     with st.sidebar:
         st.header("Configuration")
 
         use_anno = st.checkbox("Filter by year", value=True)
-        anno = st.selectbox("Year", options["anni"], index=0, disabled=not use_anno)
+        anno     = st.selectbox("Year", options["anni"], index=0, disabled=not use_anno)
 
-        paese = st.selectbox("Departure country", ["(all)"] + options["paesi"], index=0)
-        apt_dep = st.selectbox("Departure airport", ["(all)"] + options["apt_dep"], index=0)
-        apt_arr = st.selectbox("Arrival airport", ["(all)"] + options["apt_arr"], index=0)
+        paese   = st.selectbox("Departure country",  ["(all)"] + options["paesi"],   index=0)
+        apt_dep = st.selectbox("Departure airport",  ["(all)"] + options["apt_dep"], index=0)
+        apt_arr = st.selectbox("Arrival airport",    ["(all)"] + options["apt_arr"], index=0)
 
         use_zona = st.checkbox("Filter by zone", value=False)
-        zona = st.selectbox("Zone", options["zone"], index=0, disabled=not use_zona)
+        zona     = st.selectbox("Zone", options["zone"], index=0, disabled=not use_zona)
 
         st.divider()
         has_api_key = bool(get_anthropic_api_key())
-        run_report = st.checkbox(
+        run_report  = st.checkbox(
             "Enable LLM Report (Anthropic)",
             value=has_api_key,
             help="Requires ANTHROPIC_API_KEY environment variable.",
@@ -204,104 +801,111 @@ def main() -> None:
             value=not has_api_key,
             help="Generate report without consuming API credits.",
         )
-        save_outputs = st.checkbox("Save outputs to disk", value=True)
-        continue_on_error = st.checkbox("Continue if a stage fails", value=False)
+        save_outputs      = st.checkbox("Save outputs to disk",        value=True)
+        continue_on_error = st.checkbox("Continue if a stage fails",   value=False)
 
         st.divider()
         run = st.button("Run pipeline", use_container_width=True, type="primary")
 
-    # ── Pipeline execution ───────────────────────────────────────────────────
+    # ── Pipeline execution ────────────────────────────────────────────────────
     if run:
         perimeter = _build_perimeter(
             anno=int(anno) if use_anno else None,
-            paese_partenza="" if paese == "(all)" else paese,
+            paese_partenza=""     if paese   == "(all)" else paese,
             aeroporto_partenza="" if apt_dep == "(all)" else apt_dep,
-            aeroporto_arrivo="" if apt_arr == "(all)" else apt_arr,
+            aeroporto_arrivo=""   if apt_arr == "(all)" else apt_arr,
             zona=int(zona) if use_zona else None,
         )
         if run_report and not get_anthropic_api_key():
-            st.warning("`ANTHROPIC_API_KEY` not set: LLM report automatically disabled.")
+            st.warning("`ANTHROPIC_API_KEY` not set — LLM report automatically disabled.")
             run_report = False
 
-        with st.spinner("Running orchestrator..."):
-            start = time.perf_counter()
-            state, summary = run_pipeline(
-                perimeter=perimeter,
-                run_report=run_report,
-                use_llm=run_report and (not dry_run),
-                dry_run=dry_run,
-                continue_on_error=continue_on_error,
-                save_outputs=save_outputs,
-            )
-            elapsed_s = round(time.perf_counter() - start, 2)
+        st.subheader("Pipeline execution")
+        state, summary = _run_pipeline_with_live_ui(
+            perimeter=perimeter,
+            run_report=run_report,
+            use_llm=run_report and not dry_run,
+            dry_run=dry_run,
+            continue_on_error=continue_on_error,
+            save_outputs=save_outputs,
+        )
+        elapsed_s = summary["runtime_s"]
 
-        st.subheader("Pipeline Status")
+        st.subheader("Pipeline status")
         _render_stage_badges(summary)
 
         completed = len(summary.get("completed_stages", []))
-        failed = len(summary.get("failed_stages", []))
-        df_anom = state.get("df_anomalies")
-        n_rotte = int(len(df_anom)) if isinstance(df_anom, pd.DataFrame) else 0
+        failed    = len(summary.get("failed_stages",    []))
+        df_anom   = state.get("df_anomalies")
+        n_rotte   = int(len(df_anom)) if isinstance(df_anom, pd.DataFrame) else 0
 
         c1, c2, c3 = st.columns(3)
         c1.metric("Completed stages", completed)
-        c2.metric("Failed stages", failed)
-        c3.metric("Routes analysed", n_rotte, help=f"Runtime: {elapsed_s}s")
+        c2.metric("Failed stages",    failed)
+        c3.metric("Routes analysed",  n_rotte, help=f"Runtime: {elapsed_s}s")
 
         st.markdown(
-            f"<div class='section-card'><b>Runtime:</b> {elapsed_s}s &nbsp; | &nbsp; "
+            f"<div class='section-card'><b>Runtime:</b> {elapsed_s}s &nbsp;|&nbsp; "
             f"<b>Perimeter:</b> {perimeter or 'no filter'}</div>",
             unsafe_allow_html=True,
         )
 
         st.session_state["last_run"] = {
-            "state": state,
-            "summary": summary,
-            "elapsed_s": elapsed_s,
-            "perimeter": perimeter,
+            "state": state, "summary": summary,
+            "elapsed_s": elapsed_s, "perimeter": perimeter,
         }
-        st.session_state["run_history"].append(
-            {
-                "runtime_s": elapsed_s,
-                "completed": completed,
-                "failed": failed,
-                "perimeter": json.dumps(perimeter, ensure_ascii=False),
-            }
-        )
+        st.session_state["run_history"].append({
+            "runtime_s": elapsed_s, "completed": completed,
+            "failed": failed,
+            "perimeter": json.dumps(perimeter, ensure_ascii=False),
+        })
 
-    # ── Result tabs ─────────────────────────────────────────────────────────────
+    # ── Result tabs ───────────────────────────────────────────────────────────
     last_run = st.session_state.get("last_run")
     if last_run:
-        state = last_run["state"]
+        state   = last_run["state"]
         summary = last_run["summary"]
         df_anom = state.get("df_anomalies")
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "Anomalies",
-            "Classical vs Multi-Agent",
-            "Report",
-            "Stage Detail",
-            "Debug JSON",
+
+        report_obj = _safe_read_report(state.get("report_path"), state.get("report"))
+
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            "🗺️ Route Map",
+            "⚠️ Anomalies",
+            "⚖️ Classical vs Multi-Agent",
+            "📋 Report",
+            "🔧 Stage Detail",
+            "🐛 Debug JSON",
         ])
 
-        # ── Tab 1: Anomalies ───────────────────────────────────────────────────
+        # ── Tab 1: Route Map ──────────────────────────────────────────────────
         with tab1:
+            _show_route_map_tab(
+                df_anom if isinstance(df_anom, pd.DataFrame) else None,
+                report_obj,
+            )
+
+        # ── Tab 2: Anomalies ──────────────────────────────────────────────────
+        with tab2:
             st.markdown("### Risk distribution")
             if isinstance(df_anom, pd.DataFrame) and not df_anom.empty:
-                if "risk_label" in df_anom.columns:
+                risk_col = "risk_label" if "risk_label" in df_anom.columns else "anomaly_label"
+                if risk_col in df_anom.columns:
                     counts = (
-                        df_anom["risk_label"]
+                        df_anom[risk_col]
                         .value_counts()
                         .reindex(["ALTA", "MEDIA", "NORMALE"], fill_value=0)
                     )
                     st.bar_chart(counts)
                 visible_cols = [
-                    c for c in ["ROTTA", "risk_label", "ensemble_score", "baseline_score", "score_composito"]
-                    if c in df_anom.columns
+                    c for c in [
+                        "ROTTA", "risk_label", "ensemble_score",
+                        "baseline_score", "score_composito",
+                    ] if c in df_anom.columns
                 ]
                 st.markdown("### Top routes")
-                show_df = df_anom.sort_values(
-                    "ensemble_score", ascending=False
-                )[visible_cols].head(50)
+                score_col = "ensemble_score" if "ensemble_score" in df_anom.columns else df_anom.columns[0]
+                show_df   = df_anom.sort_values(score_col, ascending=False)[visible_cols].head(50)
                 st.dataframe(show_df, use_container_width=True)
                 st.download_button(
                     "Download anomalies (CSV)",
@@ -313,70 +917,65 @@ def main() -> None:
             else:
                 st.info("No anomaly data available.")
 
-        # ── Tab 2: Classical vs Multi-Agent comparison ─────────────────────────
-        with tab2:
+        # ── Tab 3: Classical vs Multi-Agent ───────────────────────────────────
+        with tab3:
             st.markdown("### Classical vs Multi-Agent Comparison")
             cl = _load_classical_report()
 
             if cl is None:
                 st.warning(
-                    "Classical `anomaly_results.csv` not found in `data/processed/`. "
+                    "Classical `final_report.csv` not found in `data/processed/`. "
                     "Run the classical pipeline notebooks first (01→06)."
                 )
             elif not isinstance(df_anom, pd.DataFrame) or df_anom.empty:
                 st.info("Run the multi-agent pipeline to enable the comparison.")
             else:
-                cl_cols = ["ROTTA", "anomaly_score", "anomaly_label"]
-                missing_cl = [c for c in cl_cols if c not in cl.columns]
+                cl_cols      = ["ROTTA", "anomaly_score", "anomaly_label"]
+                missing_cl   = [c for c in cl_cols if c not in cl.columns]
                 if missing_cl:
-                    st.error(f"Missing columns in anomaly_results.csv: {missing_cl}")
+                    st.error(f"Missing columns in classical report: {missing_cl}")
                 else:
                     df_cmp = cl[cl_cols].merge(
                         df_anom[["ROTTA", "ensemble_score", "risk_label"]],
                         on="ROTTA", how="inner",
                     )
-
                     if df_cmp.empty:
-                        st.warning("No routes in common between the classical report and the current run.")
+                        st.warning("No routes in common between the two pipelines.")
                     else:
-                        df_cmp["label_concorde"] = df_cmp["anomaly_label"] == df_cmp["risk_label"]
+                        df_cmp["label_concorde"] = (
+                            df_cmp["anomaly_label"] == df_cmp["risk_label"]
+                        )
                         df_cmp["delta_score"] = (
                             df_cmp["ensemble_score"] - df_cmp["anomaly_score"]
                         ).round(4)
 
-                        n_rotte_cmp = len(df_cmp)
-                        perimeter_info = last_run.get("perimeter", {})
-                        scope_label = (
+                        n_cmp        = len(df_cmp)
+                        scope_label  = (
                             "full dataset"
-                            if not perimeter_info
-                            else f"perimeter: {perimeter_info}"
+                            if not last_run.get("perimeter")
+                            else f"perimeter: {last_run['perimeter']}"
                         )
-                        st.caption(f"Comparison on **{n_rotte_cmp}** routes ({scope_label})")
+                        st.caption(f"Comparison on **{n_cmp}** routes ({scope_label})")
 
-                        # ── KPI ──────────────────────────────────────────────
-                        pr, _ = pearsonr(df_cmp["anomaly_score"], df_cmp["ensemble_score"])
-                        sr, _ = spearmanr(df_cmp["anomaly_score"], df_cmp["ensemble_score"])
-                        agree = df_cmp["label_concorde"].mean()
-                        top_n = min(20, len(df_cmp))
+                        pr, _  = pearsonr( df_cmp["anomaly_score"], df_cmp["ensemble_score"])
+                        sr, _  = spearmanr(df_cmp["anomaly_score"], df_cmp["ensemble_score"])
+                        agree  = df_cmp["label_concorde"].mean()
+                        top_n  = min(20, n_cmp)
                         top_cl = set(df_cmp.nlargest(top_n, "anomaly_score")["ROTTA"])
                         top_ma = set(df_cmp.nlargest(top_n, "ensemble_score")["ROTTA"])
 
                         c1, c2, c3, c4 = st.columns(4)
-                        c1.metric("Pearson r", f"{pr:.3f}", help="Linear score correlation")
-                        c2.metric("Spearman r", f"{sr:.3f}", help="Rank correlation")
-                        c3.metric("Label agreement", f"{agree:.1%}", help="% routes with same risk label")
-                        c4.metric(
-                            f"Top-{top_n} overlap",
-                            f"{len(top_cl & top_ma)}/{top_n}",
-                            help=f"Routes in common in top-{top_n} of both pipelines",
-                        )
+                        c1.metric("Pearson r",       f"{pr:.3f}",  help="Linear score correlation")
+                        c2.metric("Spearman r",      f"{sr:.3f}",  help="Rank correlation")
+                        c3.metric("Label agreement", f"{agree:.1%}")
+                        c4.metric(f"Top-{top_n} overlap",
+                                  f"{len(top_cl & top_ma)}/{top_n}")
 
-                        # ── Scatter plot ─────────────────────────────────────
                         chart = (
                             alt.Chart(df_cmp)
                             .mark_circle(size=55, opacity=0.7)
                             .encode(
-                                x=alt.X("anomaly_score:Q", title="Classical score"),
+                                x=alt.X("anomaly_score:Q",  title="Classical score"),
                                 y=alt.Y("ensemble_score:Q", title="Multi-Agent score"),
                                 color=alt.Color(
                                     "anomaly_label:N",
@@ -386,57 +985,43 @@ def main() -> None:
                                     ),
                                     legend=alt.Legend(title="Classical label"),
                                 ),
-                                tooltip=[
-                                    "ROTTA",
-                                    "anomaly_label",
-                                    "risk_label",
-                                    "anomaly_score",
-                                    "ensemble_score",
-                                    "delta_score",
-                                ],
+                                tooltip=["ROTTA", "anomaly_label", "risk_label",
+                                         "anomaly_score", "ensemble_score", "delta_score"],
                             )
                             .properties(
                                 title=f"Score correlation (Pearson r={pr:.3f} | Spearman r={sr:.3f})",
-                                width=600,
-                                height=400,
+                                width=600, height=400,
                             )
                         )
-
-                        max_val = max(
-                            float(df_cmp["anomaly_score"].max()),
-                            float(df_cmp["ensemble_score"].max()),
-                            0.6,
-                        )
-                        diagonal = (
+                        max_val   = max(float(df_cmp["anomaly_score"].max()),
+                                        float(df_cmp["ensemble_score"].max()), 0.6)
+                        diagonal  = (
                             alt.Chart(pd.DataFrame({"x": [0, max_val], "y": [0, max_val]}))
                             .mark_line(color="gray", strokeDash=[4, 4], opacity=0.5)
                             .encode(x="x:Q", y="y:Q")
                         )
-
                         st.altair_chart(chart + diagonal, use_container_width=True)
 
-                        # ── Gold standard: ALTA in both ────────────────────────
                         gold = df_cmp[
-                            (df_cmp["anomaly_label"] == "ALTA")
-                            & (df_cmp["risk_label"] == "ALTA")
+                            (df_cmp["anomaly_label"] == "ALTA") &
+                            (df_cmp["risk_label"]    == "ALTA")
                         ]
-                        st.markdown(f"### ALTA routes agreed by both pipelines ({len(gold)} routes)")
+                        st.markdown(
+                            f"### ALTA routes agreed by both pipelines ({len(gold)} routes)"
+                        )
                         if not gold.empty:
                             st.dataframe(
                                 gold[["ROTTA", "anomaly_score", "ensemble_score", "delta_score"]]
                                 .sort_values("anomaly_score", ascending=False),
-                                use_container_width=True,
-                                hide_index=True,
+                                use_container_width=True, hide_index=True,
                             )
                         else:
-                            st.info("No routes classified as ALTA by both pipelines.")
+                            st.info("No routes classified ALTA by both pipelines.")
 
-                        # ── Full comparison table ───────────────────────────────
-                        with st.expander(f"Full comparison table ({n_rotte_cmp} routes)"):
+                        with st.expander(f"Full comparison table ({n_cmp} routes)"):
                             st.dataframe(
                                 df_cmp.sort_values("anomaly_score", ascending=False),
-                                use_container_width=True,
-                                hide_index=True,
+                                use_container_width=True, hide_index=True,
                             )
                             st.download_button(
                                 "Download comparison (CSV)",
@@ -446,11 +1031,10 @@ def main() -> None:
                                 use_container_width=True,
                             )
 
-        # ── Tab 3: Report ────────────────────────────────────────────────────
-        with tab3:
-            raw_report = state.get("report") or {}
+        # ── Tab 4: Report ─────────────────────────────────────────────────────
+        with tab4:
+            raw_report  = state.get("report") or {}
             report_error = raw_report.get("error") if isinstance(raw_report, dict) else None
-            report_obj = _safe_read_report(state.get("report_path"), state.get("report"))
             if report_obj:
                 st.markdown("### Summary")
                 st.write(report_obj.get("summary", "N/A"))
@@ -468,25 +1052,24 @@ def main() -> None:
                     use_container_width=True,
                 )
             else:
-                stages = (summary or {}).get("stages", {})
+                stages      = (summary or {}).get("stages", {})
                 report_stage = stages.get("report")
                 if report_error:
                     st.error(f"ReportAgent error: {report_error}")
                 elif report_stage is None:
                     st.info(
-                        "Report not executed in this run. Check 'Enable LLM Report' "
-                        "and run the pipeline again."
+                        "Report not executed. Check 'Enable LLM Report' and run again."
                     )
                 else:
                     st.info("Report not available for this run.")
 
-        # ── Tab 4: Stage Detail ──────────────────────────────────────────────
-        with tab4:
+        # ── Tab 5: Stage Detail ────────────────────────────────────────────────
+        with tab5:
             st.markdown("### Stage Results")
             st_df = _stage_table(summary)
             st.dataframe(st_df, use_container_width=True, hide_index=True)
-            if not st_df.empty and (st_df["status"] == "ERRORE").any():
-                first_err = st_df[st_df["status"] == "ERRORE"].iloc[0]["error"]
+            if not st_df.empty and (st_df["status"] == "ERROR").any():
+                first_err = st_df[st_df["status"] == "ERROR"].iloc[0]["error"]
                 st.error(first_err or "Stage failed with no error detail.")
 
             hist = st.session_state.get("run_history", [])
@@ -494,20 +1077,18 @@ def main() -> None:
                 st.markdown("### Run History (current session)")
                 st.dataframe(pd.DataFrame(hist).tail(10), use_container_width=True, hide_index=True)
 
-        # ── Tab 5: Debug JSON ────────────────────────────────────────────────
-        with tab5:
+        # ── Tab 6: Debug JSON ─────────────────────────────────────────────────
+        with tab6:
             st.markdown("### Summary orchestrator")
             st.json(summary)
             st.markdown("### Meta")
-            st.json(
-                {
-                    "data_meta": state.get("data_meta"),
-                    "feature_meta": state.get("feature_meta"),
-                    "baseline_meta": state.get("baseline_meta"),
-                    "anomaly_meta": state.get("anomaly_meta"),
-                    "report_path": state.get("report_path"),
-                }
-            )
+            st.json({
+                "data_meta":     state.get("data_meta"),
+                "feature_meta":  state.get("feature_meta"),
+                "baseline_meta": state.get("baseline_meta"),
+                "anomaly_meta":  state.get("anomaly_meta"),
+                "report_path":   state.get("report_path"),
+            })
     else:
         st.info("Configure filters from the sidebar and click **Run pipeline**.")
 
