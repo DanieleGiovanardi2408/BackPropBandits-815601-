@@ -1,121 +1,81 @@
 # Airport Risk Intelligence
-### Classical Pipeline vs Multi-Agent System — Reply × LUISS 2026
-
-A head-to-head comparison of two architectures solving the same anomaly detection problem on real airport security data. The same analytical logic is implemented **twice** — once as a classical sequential pipeline, once as a LangGraph multi-agent system — then compared across accuracy, flexibility, and explainability.
+**Reply × LUISS 2026 — Project 2**
 
 ---
 
-## What this project does
+## Who we are and what this is
 
-Border control authorities at Italian airports generate thousands of security alerts per month. This project builds a **proactive** system that identifies which international routes exhibit anomalous security patterns — elevated alarm rates, unusual investigation outcomes, high rejection rates — before they become operational incidents.
+We're a team of students competing in the **Reply × LUISS 2026** challenge. For Project 2 we were asked to build an anomaly detection system on real airport security data, and then argue which architectural approach works best.
 
-The unit of analysis is the **route** (`departure_airport–arrival_airport`, e.g. `CAI-FCO`). Across 567 unique routes the system detects anomalies by combining statistical baselines with a 4-model ensemble.
+Rather than just picking one approach and running with it, we decided to **build the same system twice** — once as a classical sequential pipeline (notebooks + Python scripts) and once as a **LangGraph multi-agent system** — so we could compare them properly. Same data, same features, same detection logic, two completely different architectures.
 
----
-
-## Two Architectures, One Problem
-
-|  | Classical Pipeline | Multi-Agent Pipeline |
-|--|--|--|
-| **Paradigm** | Sequential Jupyter notebooks | LangGraph agent graph |
-| **Entry point** | `classical_pipeline/main.py` | `multiagent_pipeline/main.py` |
-| **Orchestration** | Linear, step-by-step | 5 autonomous agents with conditional edges |
-| **Filtering** | Full dataset only | Dynamic perimeter (year / country / airport / zone) |
-| **Explainability** | Statistical summaries | LLM narrative (Claude Sonnet) |
-| **Output** | `data/processed/final_report.csv` | JSON report + live Streamlit dashboard |
+The question we're trying to answer: *when does adding agent orchestration actually buy you something over a well-written classical pipeline?*
 
 ---
 
-## Architecture
+## The problem
 
-### Classical Pipeline
+Border control at Italian airports generates a lot of data: every passenger transit, every security alert, every document check. Most of this data sits unused until something goes wrong.
 
-```
-ALLARMI.csv ──┐
-               ├──▶ Preprocessing ──▶ Feature Engineering ──▶ Baseline Construction
-VIAGGIATORI.csv┘       (cleaning)       (54 features/route)    (robust z-scores MAD)
-                                                                        │
-                                                                        ▼
-                                                           Anomaly Detection
-                                                           (IsolationForest + LOF
-                                                            + Z-score + Autoencoder)
-                                                                        │
-                                                                        ▼
-                                                           Post-processing ──▶ Evaluation
-                                                           (business rules,    (scorecard,
-                                                            risk labels)        SHAP, stability)
-```
+Our system looks at **routes** — pairs of `departure_airport → arrival_airport` (e.g. `CAI-FCO`, Cairo to Rome Fiumicino) — and asks: *is this route behaving anomalously compared to all the others?*
 
-### Multi-Agent Pipeline (LangGraph)
+Concretely, we're looking for routes with unusual combinations of:
+- High alarm rates (Interpol, SDI, NSIS)
+- High investigation and rejection rates
+- Low closure rates (alarms that don't get resolved)
+- Unusual traveler profiles
 
-```
-          START
-            │
-            ▼
-       ┌──────────┐   error
-       │DataAgent │──────────────────────────────────────▶ END
-       │          │   loads & filters CSVs
-       └────┬─────┘
-            │ ok
-            ▼
-      ┌───────────────┐   error
-      │FeatureAgent   │─────────────────────────────────▶ END
-      │               │   engineers 54 features per route
-      └───────┬───────┘
-              │ ok
-              ▼
-      ┌────────────────┐   error
-      │BaselineAgent   │──────────────────────────────▶ END
-      │                │   robust z-scores (MAD)
-      └────────┬───────┘
-               │ ok
-               ▼
-       ┌──────────────┐   error
-       │OutlierAgent  │──────────────────────────────▶ END
-       │              │   4-model weighted ensemble
-       └──────┬───────┘
-              │ ok
-              ├── no ALTA/MEDIA routes ──────────────▶ END
-              │
-              │ run_report=True
-              ▼
-       ┌─────────────┐
-       │ReportAgent  │   LLM explanations per anomalous route
-       │  (optional) │   Claude Sonnet via Anthropic API
-       └──────┬──────┘
-              ▼
-             END
-```
-
-Each agent reads from and writes to a shared `AgentState` TypedDict. Conditional edges implement stop-on-error logic and skip the ReportAgent when not needed.
+We have ~567 unique routes and ~13 months of data. The output is a risk label per route: **ALTA** (top 3%), **MEDIA** (top 10%), **NORMALE**.
 
 ---
 
-## Dataset
+## Our reasoning
 
-Two raw CSV files (not tracked by git — confidential):
+### Why a classical pipeline first
 
-| File | Rows | Description |
-|------|------|-------------|
-| `data/raw/ALLARMI.csv` | ~8,400 | Security alarm events per route — airport codes, date, alarm type, count |
-| `data/raw/TIPOLOGIA_VIAGGIATORE.csv` | ~50,000 | Traveler demographics — nationality, document type, entry/alarm/investigation/outcome counts |
+We started classically because it forced us to understand the data properly. Six notebooks, step by step: EDA, feature engineering, baseline construction, anomaly detection, post-processing, evaluation. By the end we had 54 features per route, a robust statistical baseline (MAD-based z-scores rather than mean/std, which are too sensitive to outliers in security data), and a 4-model ensemble — IsolationForest, LOF, Z-score composite, and an Autoencoder.
 
-- **567 unique routes** across ~13 months (Dec 2023 – Dec 2024)
-- Extensive cleaning required: 20+ null representations, Italian date formats, mixed ISO2/ISO3 country codes
-- **54 numerical features** engineered per route across 6 semantic classes
-- Output risk labels: `ALTA` (high risk, ~top 3%), `MEDIA` (medium, ~top 10%), `NORMALE`
+The classical pipeline works well. It's reproducible, easy to audit, and produces good results. Its main limitation is rigidity: if you want to re-run on a different time window, or filter to a specific country, you re-run everything.
+
+### Why we then built a multi-agent version
+
+The multi-agent version (LangGraph) replicates the exact same logic but as a graph of five specialized agents, each responsible for one stage. The interesting part isn't the detection itself — it's what you gain architecturally:
+
+- **Dynamic filtering**: you can pass a `perimeter` (year, country, airport, zone) at runtime and only the relevant data flows through
+- **LLM explanations**: a ReportAgent uses Claude to generate plain-English narratives for each anomalous route, citing the specific z-score drivers
+- **Modularity**: each agent can fail, retry, or be swapped independently — you don't re-run the whole thing if the feature step changes
+
+The tradeoff is complexity. A classical pipeline is easier to debug and faster to iterate on. A multi-agent system is more flexible and scales better when requirements change.
+
+### What we found
+
+The two systems agree on ~94% of labels and produce scores with Pearson r ≈ 0.89. The top-20 most anomalous routes overlap 17/20. So the architectures converge on the same answer — the multi-agent version just gets there in a way that's operationally more useful.
 
 ---
 
-## Project Structure
+## Results
+
+![Top anomalous routes](images/top_routes_risk.png)
+
+![Feature distributions](images/feature_distributions.png)
+
+![Feature correlation](images/feature_correlation.png)
+
+---
+
+## Project structure
 
 ```
 classical-vs-multiagent/
 │
-├── README.md                          # This file
-├── requirements.txt                   # Python dependencies
-├── .env.example                       # Environment variables template
-├── .gitignore
+├── README.md
+├── requirements.txt
+├── .env.example
+│
+├── images/                            # Charts and visualisations
+│   ├── top_routes_risk.png
+│   ├── feature_distributions.png
+│   └── feature_correlation.png
 │
 ├── data/
 │   ├── raw/                           # Source CSVs (gitignored — confidential)
@@ -123,107 +83,90 @@ classical-vs-multiagent/
 │   │   └── TIPOLOGIA_VIAGGIATORE.csv
 │   └── processed/                     # Pipeline outputs (gitignored)
 │
-├── classical_pipeline/                # ── PIPELINE 1 ──────────────────────
-│   ├── main.py                        # Runs the full classical pipeline end-to-end
+├── classical_pipeline/                # ── Pipeline 1 ──────────────────────
+│   ├── main.py                        # Run everything as a single script
 │   └── notebooks/
-│       ├── 01_EDA.ipynb               # Exploratory data analysis
+│       ├── 01_EDA.ipynb
 │       ├── 02_feature_engineering.ipynb
 │       ├── 03_baseline_construction.ipynb
 │       ├── 04_anomaly_detection.ipynb
 │       ├── 05_post_processing.ipynb
-│       └── 06_evaluation.ipynb        # Scorecard, SHAP, stability analysis
+│       └── 06_evaluation.ipynb
 │
-├── multiagent_pipeline/               # ── PIPELINE 2 ──────────────────────
-│   ├── main.py                        # LangGraph orchestrator — run_pipeline()
-│   ├── state.py                       # AgentState TypedDict (shared state schema)
-│   ├── config.py                      # API key + model configuration
+├── multiagent_pipeline/               # ── Pipeline 2 ──────────────────────
+│   ├── main.py                        # LangGraph entry point
+│   ├── state.py                       # Shared AgentState schema
+│   ├── config.py                      # API key and model config
 │   ├── agents/
-│   │   ├── data_agent.py              # Agent 1 — loads & filters raw CSVs
-│   │   ├── feature_agent.py           # Agent 2 — engineers 54 route features
-│   │   ├── baseline_agent.py          # Agent 3 — robust z-scores via MAD
-│   │   ├── outlier_agent.py           # Agent 4 — 4-model weighted ensemble
-│   │   └── report_agent.py            # Agent 5 — LLM narrative explanations
+│   │   ├── data_agent.py              # Loads and filters raw CSVs
+│   │   ├── feature_agent.py           # Builds 54 features per route
+│   │   ├── baseline_agent.py          # Robust z-scores via MAD
+│   │   ├── outlier_agent.py           # 4-model weighted ensemble
+│   │   └── report_agent.py            # LLM narrative explanations
 │   ├── src/
-│   │   └── features.py                # FeatureBuilder class (shared with classical)
+│   │   └── features.py                # FeatureBuilder (shared with classical)
 │   ├── tools/
-│   │   └── data_tools.py              # Perimeter filtering utilities
+│   │   └── data_tools.py              # Perimeter filtering helpers
 │   └── tests/
-│       └── e2e_validation.py          # End-to-end validation suite
+│       └── e2e_validation.py          # End-to-end validation
 │
 ├── shared/
-│   └── preprocessing.py               # Data cleaning — used by both pipelines
+│   └── preprocessing.py               # Data cleaning used by both pipelines
 │
-├── streamlit_app/                     # ── DASHBOARD ───────────────────────
-│   ├── app.py                         # Main Streamlit application
-│   └── agent_graph.jsx                # React animated agent flow visualisation
+├── streamlit_app/                     # ── Dashboard ────────────────────────
+│   ├── app.py                         # Streamlit application
+│   └── agent_graph.jsx                # Animated React agent flow diagram
 │
 ├── notebooks/
-│   └── 07_comparison_classical_vs_multiagent.ipynb  # Head-to-head comparison
+│   └── 07_comparison_classical_vs_multiagent.ipynb
 │
 └── docs/
-    ├── Reply_projects.pdf             # Competition brief
+    ├── Reply_projects.pdf
     └── DEMO_CHECKLIST.md
 ```
 
 ---
 
-## Quick Start
+## How to run it
 
-### 1. Clone and install
+### Setup
 
 ```bash
 git clone https://github.com/<your-org>/classical-vs-multiagent.git
 cd classical-vs-multiagent
-python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Add your data
-
-Place the raw files in:
+Add the raw data files:
 ```
 data/raw/ALLARMI.csv
 data/raw/TIPOLOGIA_VIAGGIATORE.csv
 ```
 
-### 3. (Optional) Configure the Anthropic API key
+### Classical pipeline
 
+Open and run the notebooks in order:
 ```bash
-cp .env.example .env
-# Edit .env and add:  ANTHROPIC_API_KEY=sk-ant-...
+jupyter lab classical_pipeline/notebooks/
 ```
 
-The pipeline works fully without an API key — the LLM report step is optional and can be replaced with a dry-run placeholder.
-
----
-
-## Running the Pipelines
-
-### Classical Pipeline
-
+Or run everything at once:
 ```bash
-# Option A — explore notebooks step by step (recommended)
-jupyter lab classical_pipeline/notebooks/
-
-# Option B — run everything as a single script
 python classical_pipeline/main.py
 ```
 
-Outputs written to `data/processed/`: `final_report.csv`, `anomaly_results.csv`, evaluation scorecard JSON.
-
-### Multi-Agent Pipeline (Python API)
+### Multi-agent pipeline
 
 ```python
 from multiagent_pipeline.main import run_pipeline
 
-# Fast run — no API key needed
+# Without LLM (no API key needed)
 state, summary = run_pipeline({"anno": 2024}, run_report=False)
-print(summary["stages"])            # per-agent status + elapsed time
-print(state["df_anomalies"].shape)  # (n_routes, n_features)
 
-# Full run with LLM explanations (requires ANTHROPIC_API_KEY)
+# With LLM explanations (needs ANTHROPIC_API_KEY in .env)
 state, summary = run_pipeline(
-    perimeter={"anno": 2024, "paese_partenza": "EG"},
+    {"anno": 2024},
     run_report=True,
     use_llm=True,
     save_outputs=True,
@@ -231,79 +174,40 @@ state, summary = run_pipeline(
 print(state["report"]["summary"])
 ```
 
-### Streamlit Dashboard (recommended)
+### Dashboard (the nicest way to see everything)
 
 ```bash
 streamlit run streamlit_app/app.py
 ```
 
-Opens at **http://localhost:8501** — no extra configuration needed.
+Opens at `http://localhost:8501`. From here you can:
+- Run the multi-agent pipeline with any filter combination
+- See the agent graph animate as each stage completes
+- Explore the route map — click any route to see its risk details and LLM explanation
+- Compare classical vs multi-agent scores side by side
+
+### LLM report (optional)
+
+The ReportAgent calls Claude to generate plain-English explanations for each anomalous route. To enable it:
+
+```bash
+cp .env.example .env
+# Add your key: ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Then check **Enable LLM Report** in the dashboard sidebar before running. Without a key, you can use **Dry run** mode which runs the full pipeline but skips the API calls.
 
 ---
 
-## Dashboard Features
+## Tech stack
 
-**🗺️ Route Map**
-Interactive Plotly globe with routes coloured by risk level. Click any departure marker to open the route detail panel. Italian arrival airports shown as cyan diamonds. LLM explanation shown inline when the ReportAgent has run.
-
-**⚖️ Classical vs Multi-Agent**
-Score correlation scatter plot (Pearson + Spearman r), label agreement matrix, and top-N overlap between both pipelines. Useful for validating that the two architectures agree on which routes are anomalous.
-
-**⚠️ Anomalies**
-Sortable table of all routes ranked by ensemble score, plus a risk distribution bar chart and CSV download.
-
-**📋 Report**
-Full LLM-generated narrative for each ALTA/MEDIA route, citing the top-3 anomaly drivers with their values and σ deviations from the baseline.
-
-**🔧 Stage Detail**
-Per-agent elapsed time, error messages, and run history for the current session.
+- **Data & ML**: pandas, numpy, scipy, scikit-learn, PyOD
+- **Agent orchestration**: LangGraph, LangChain
+- **LLM**: Anthropic Claude (`claude-sonnet-4-5`)
+- **Dashboard**: Streamlit, Plotly, Altair
+- **Agent visualisation**: React 18 + Babel (embedded in Streamlit)
+- **Explainability**: SHAP
 
 ---
 
-## Key Results
-
-| Metric | Value |
-|--------|-------|
-| Routes analysed | 567 |
-| ALTA risk routes | ~4 (top 1%) |
-| MEDIA risk routes | ~53 (top 10%) |
-| Pearson r (classical vs MA scores) | ~0.89 |
-| Spearman ρ | ~0.91 |
-| Label agreement | ~94% |
-| Top-20 overlap | 17 / 20 |
-
-The two architectures produce highly correlated risk rankings, validating the multi-agent approach. Key differentiators:
-
-- **Flexibility** — the multi-agent pipeline supports runtime perimeter filters (year, country, airport, zone) without re-running the full pipeline
-- **Explainability** — the ReportAgent generates human-readable narratives citing specific statistical evidence (z-scores, feature values)
-- **Modularity** — each agent can be tested, swapped, or extended independently; a new data source or detection model only affects the relevant agent
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Data processing | pandas, numpy, scipy |
-| Anomaly detection | scikit-learn (IsolationForest, LOF), PyOD (Autoencoder) |
-| Statistical baselines | MAD-based robust z-scores, Tukey IQR |
-| Agent orchestration | LangGraph (StateGraph), LangChain |
-| LLM explanations | Anthropic Claude (`claude-sonnet-4-5`) |
-| Dashboard | Streamlit, Plotly, Altair |
-| Agent visualisation | React 18 + Babel Standalone (embedded in Streamlit iframe) |
-| Feature importance | SHAP |
-
----
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ANTHROPIC_API_KEY` | Optional | Enables LLM report in ReportAgent |
-| `ANTHROPIC_MODEL` | Optional | Override model (default: `claude-sonnet-4-5`) |
-| `USE_LLM` | Optional | `true`/`false` — enables LLM globally |
-| `DRY_RUN` | Optional | `true` — skips API calls, returns placeholder text |
-
----
-
-*Reply × LUISS 2026 — Project 2: Classical vs Multi-Agent*
+*Reply × LUISS 2026*
