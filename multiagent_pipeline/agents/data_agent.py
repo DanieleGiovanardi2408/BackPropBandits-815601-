@@ -9,12 +9,21 @@ Responsibilities:
     filtered DataFrame with its statistics in the shared state.
 
 Architecture:
-    DETERMINISTIC agent — does not use an LLM.
-    Always executes the same 3 tools in sequence. This is a deliberate
-    choice: the DataAgent knows exactly what to do; an LLM would be a
-    waste of resources and latency.
+    MOSTLY DETERMINISTIC — uses an LLM exactly once, only when needed.
 
-    load_dataset → filter_by_perimeter → get_dataset_stats
+    The DataAgent includes a schema normalisation layer: if the loaded
+    dataset already contains the canonical column names expected by the
+    pipeline, no LLM call is made (zero extra latency, zero extra cost).
+    If the column names differ (e.g. a new dataset with different naming
+    conventions), the LLM infers a mapping from actual → canonical names
+    and renames the columns *before* any downstream agent sees the data.
+    All agents after DataAgent remain fully deterministic regardless.
+
+    Flow:
+        load_dataset
+        → [schema_normalize — LLM only if canonical cols missing]
+        → filter_by_perimeter
+        → get_dataset_stats
 
 Input  (from AgentState): state["perimeter"]
 Output (to AgentState):   state["df_raw"], state["df_allarmi"],
@@ -36,8 +45,118 @@ from pathlib import Path
 from typing import Optional
 
 from multiagent_pipeline.state import AgentState, Perimeter, PATHS
+from multiagent_pipeline.config import get_anthropic_api_key, get_anthropic_model
 
 logger = logging.getLogger(__name__)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SCHEMA NORMALISATION
+# Canonical column names expected by all downstream agents.
+# On the original datasets these are always present → LLM is never called.
+# On a new dataset with different column names → LLM infers the mapping once,
+# renames the columns, and all downstream agents stay fully deterministic.
+# ══════════════════════════════════════════════════════════════════════════════
+
+_CANONICAL_ALLARMI = [
+    "AREOPORTO_ARRIVO", "AREOPORTO_PARTENZA", "ANNO_PARTENZA",
+    "MESE_PARTENZA", "PAESE_PART", "ZONA", "TOT",
+]
+_CANONICAL_VIAGGIATORI = [
+    "AREOPORTO_ARRIVO", "AREOPORTO_PARTENZA", "ANNO_PARTENZA",
+    "PAESE_PART", "ZONA",
+]
+
+
+def _schema_ok(df: pd.DataFrame, canonical: list) -> bool:
+    """True if every canonical column is already present — no LLM needed."""
+    return all(col in df.columns for col in canonical)
+
+
+def _llm_infer_mapping(df: pd.DataFrame, canonical: list) -> dict:
+    """
+    Calls the LLM with the actual column names + sample values and asks it
+    to return a JSON mapping {actual_col: canonical_col}.
+    Only invoked when _schema_ok() returns False.
+    """
+    from langchain_anthropic import ChatAnthropic
+    from langchain_core.messages import HumanMessage, SystemMessage
+    import re
+
+    api_key = get_anthropic_api_key()
+    if not api_key:
+        logger.warning("[schema_norm] ANTHROPIC_API_KEY not set — skipping LLM normalisation")
+        return {}
+
+    # Build a concise sample: column name + dtype + first 3 non-null values
+    sample = {
+        col: df[col].dropna().head(3).tolist()
+        for col in df.columns
+    }
+
+    system = (
+        "You are a data-schema expert. Map columns from an unknown dataset to a "
+        "canonical schema. Reply ONLY with a valid JSON object "
+        "{\"actual_column_name\": \"canonical_column_name\"}. "
+        "Include only columns that need renaming. "
+        "Omit columns that already match a canonical name or have no match."
+    )
+    user = (
+        f"Canonical columns required by the pipeline:\n{json.dumps(canonical)}\n\n"
+        f"Actual columns with sample values:\n{json.dumps(sample, default=str)}\n\n"
+        "Return a JSON mapping only. No explanation."
+    )
+
+    llm = ChatAnthropic(
+        model=get_anthropic_model(),
+        api_key=api_key,
+        max_tokens=512,
+    )
+    response = llm.invoke([SystemMessage(content=system), HumanMessage(content=user)])
+    raw = response.content.strip()
+
+    match = re.search(r"\{.*\}", raw, re.DOTALL)
+    if not match:
+        logger.warning("[schema_norm] LLM returned non-JSON: %s", raw[:200])
+        return {}
+
+    mapping = json.loads(match.group())
+    logger.info("[schema_norm] LLM inferred mapping: %s", mapping)
+    return mapping
+
+
+def _maybe_normalize(json_str: str, canonical: list, name: str) -> str:
+    """
+    Deserialises the JSON, checks schema compatibility, normalises if needed,
+    and re-serialises. On the original datasets this is a near-zero-cost check.
+    """
+    parsed = json.loads(json_str)
+    if isinstance(parsed, dict) and "error" in parsed:
+        return json_str  # propagate previous error untouched
+
+    df = pd.DataFrame(parsed)
+
+    if _schema_ok(df, canonical):
+        logger.debug("[schema_norm] %s — canonical schema detected, no LLM call", name)
+        return json_str
+
+    missing = [c for c in canonical if c not in df.columns]
+    logger.info(
+        "[schema_norm] %s — %d canonical columns missing (%s) — invoking LLM",
+        name, len(missing), missing,
+    )
+    try:
+        mapping = _llm_infer_mapping(df, canonical)
+        if mapping:
+            df = df.rename(columns=mapping)
+            still_missing = [c for c in canonical if c not in df.columns]
+            if still_missing:
+                logger.warning("[schema_norm] %s — still missing after mapping: %s", name, still_missing)
+            else:
+                logger.info("[schema_norm] %s — schema fully normalised ✓", name)
+    except Exception as exc:
+        logger.error("[schema_norm] LLM inference failed (%s) — using original schema", exc)
+
+    return df.to_json(orient="records", date_format="iso")
 
 # Resolve dataset paths relative to the project root, so it works
 # from any cwd (terminal, VSCode "Run File", debugger, etc.)
@@ -210,9 +329,15 @@ def data_agent_node(state: AgentState, save_artifacts: bool = False) -> AgentSta
         perimeter = Perimeter(**raw_perimeter)
 
         # 2. Load the datasets (merged + separate clean files)
-        merged_json = load_dataset(PATHS["dataset_merged"])
-        allarmi_json = load_dataset(PATHS["allarmi_clean"])
+        merged_json      = load_dataset(PATHS["dataset_merged"])
+        allarmi_json     = load_dataset(PATHS["allarmi_clean"])
         viaggiatori_json = load_dataset(PATHS["viaggiatori_clean"])
+
+        # 2b. Schema normalisation — no-op on original datasets (zero LLM calls).
+        #     Only fires when a new dataset has different column naming conventions.
+        merged_json      = _maybe_normalize(merged_json,      _CANONICAL_ALLARMI,    "merged")
+        allarmi_json     = _maybe_normalize(allarmi_json,     _CANONICAL_ALLARMI,    "allarmi")
+        viaggiatori_json = _maybe_normalize(viaggiatori_json, _CANONICAL_VIAGGIATORI, "viaggiatori")
 
         # 3. Apply filters to all datasets
         merged_json = filter_by_perimeter(
