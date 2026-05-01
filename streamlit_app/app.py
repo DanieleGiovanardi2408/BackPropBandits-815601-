@@ -314,11 +314,11 @@ def _inject_style() -> None:
 # ─────────────────────────── Pipeline graph HTML ──────────────────────────────
 
 _PIPELINE_AGENTS = [
-    ("data",     "DataAgent",     "#0ea5e9", "Loads & filters CSVs"),
-    ("feature",  "FeatureAgent",  "#22c55e", "Engineers 54 features"),
-    ("baseline", "BaselineAgent", "#f59e0b", "Robust z-scores (MAD)"),
-    ("outlier",  "OutlierAgent",  "#ef4444", "Ensemble detection"),
-    ("report",   "ReportAgent",   "#a855f7", "LLM explanations"),
+    ("data",     "DataAgent",          "#0ea5e9", "Loads, filters & 54 features"),
+    ("baseline", "BaselineAgent",      "#f59e0b", "Robust MAD z-scores"),
+    ("outlier",  "OutlierAgent",       "#ef4444", "4-model weighted ensemble"),
+    ("risk",     "RiskProfilingAgent", "#ec4899", "5 business rules → final_risk"),
+    ("report",   "ReportAgent",        "#a855f7", "LLM narrative (optional)"),
 ]
 
 
@@ -329,8 +329,10 @@ def _render_pipeline_graph_html(active_step: int, stage_errors: dict | None = No
     active_step:
       -1  → nothing started
        0  → DataAgent running
-       1  → FeatureAgent running (DataAgent done)
-       …
+       1  → BaselineAgent running (DataAgent done)
+       2  → OutlierAgent running
+       3  → RiskProfilingAgent running
+       4  → ReportAgent running
        5  → all done
     """
     errors = stage_errors or {}

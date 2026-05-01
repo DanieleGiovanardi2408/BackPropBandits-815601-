@@ -60,6 +60,56 @@ The five agents (Reply spec topology):
 
 Feature engineering lives inside `DataAgent` rather than in its own agent: it is a deterministic transformation of the same filtered data, and giving it a separate agent box would push the visible count to six without adding orchestration value.
 
+### Architecture map
+
+```mermaid
+flowchart LR
+    U([User perimeter<br/>year · country · airport · zone]) --> D
+    D[DataAgent<br/>load · filter · 54 features] --> B
+    B[BaselineAgent<br/>MAD z-scores → baseline_score] --> O
+    O[OutlierAgent<br/>IF · LOF · Z · AE → ensemble_score<br/>risk_label] --> R
+    R[RiskProfilingAgent<br/>5 business rules → br_score<br/>final_risk + risk_drivers] -- ALTA/MEDIA --> RP[ReportAgent<br/>LLM narrative]
+    R -- no anomalies --> END([end])
+    RP --> END
+    classDef det fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef llm fill:#f3e8ff,stroke:#9333ea,color:#581c87
+    class D,B,O,R det
+    class RP llm
+```
+
+### Data flow (input → processing → output)
+
+```mermaid
+flowchart TB
+    subgraph IN[INPUT]
+        A[ALLARMI.csv<br/>~5,080 events]
+        V[TIPOLOGIA_VIAGGIATORE.csv<br/>~5,095 records]
+    end
+    subgraph PROC[PROCESSING — shared modules]
+        P[shared/preprocessing.py<br/>cleaning · merge]
+        F[multiagent_pipeline/src/features.py<br/>FeatureBuilder · 54 features per route]
+        ML[OutlierAgent ensemble<br/>IsolationForest · LOF · Z · Autoencoder]
+        RL[RiskProfilingAgent<br/>5 business rules · confidence blend]
+    end
+    subgraph OUT[OUTPUT]
+        AR[anomaly_results.csv / anomaly_results_live.csv<br/>567 routes × scores]
+        FR[final_report.csv / risk_profiles_live.csv<br/>+ final_risk · risk_drivers]
+        JR[multiagent_report.json<br/>findings + LLM narratives]
+        ST[Streamlit dashboard<br/>6 tabs · interactive]
+    end
+    A --> P
+    V --> P
+    P --> F
+    F --> ML
+    ML --> RL
+    RL --> AR
+    RL --> FR
+    RL --> JR
+    AR --> ST
+    FR --> ST
+    JR --> ST
+```
+
 ### What we found
 
 After running both pipelines on the same 567 routes:
@@ -99,6 +149,7 @@ The notebook `notebooks/07_comparison_classical_vs_multiagent.ipynb` contains th
 classical-vs-multiagent/
 │
 ├── README.md
+├── main.ipynb                          # Single-notebook tour of the project
 ├── requirements.txt
 ├── .env.example                        # ANTHROPIC_API_KEY template
 │
@@ -138,7 +189,8 @@ classical-vs-multiagent/
 │   ├── tools/
 │   │   └── data_tools.py               # Perimeter filtering helpers
 │   └── tests/
-│       └── e2e_validation.py           # 5-perimeter regression suite
+│       ├── e2e_validation.py           # 5-perimeter regression suite
+│       └── test_risk_profiling_agent.py  # 13 unit tests on business rules
 │
 ├── shared/
 │   └── preprocessing.py                # Data cleaning used by both pipelines
@@ -172,6 +224,14 @@ Add the raw data files:
 data/raw/ALLARMI.csv
 data/raw/TIPOLOGIA_VIAGGIATORE.csv
 ```
+
+### Quickest start — run the whole story in one notebook
+
+```bash
+PYTHONPATH=. jupyter lab main.ipynb
+```
+
+`main.ipynb` calls both pipelines in sequence, prints the comparative metrics, renders a sample multi-agent finding, and closes with the conclusion table. It is the recommended entry point for a reviewer.
 
 ### Classical pipeline
 
@@ -215,8 +275,13 @@ PYTHONPATH=. jupyter lab notebooks/07_comparison_classical_vs_multiagent.ipynb
 
 ### Validation suite
 
-5-perimeter regression test (no LLM, ~3 s):
+Two layers of tests sit alongside the pipelines:
+
 ```bash
+# 13 unit tests on the RiskProfilingAgent business rules — sub-second
+PYTHONPATH=. python -m pytest multiagent_pipeline/tests/test_risk_profiling_agent.py -v
+
+# 5-perimeter end-to-end regression (no LLM, ~3 s)
 PYTHONPATH=. python multiagent_pipeline/tests/e2e_validation.py
 # -> data/processed/multiagent_validation_report.json
 ```
@@ -246,6 +311,16 @@ Then check **Enable LLM Report** in the dashboard sidebar before running. Withou
 
 ---
 
+## Deviations from the Reply spec — and why
+
+We deliberately deviated from the Reply spec in three places. Each deviation is documented here so a reviewer can interrogate the rationale rather than discover the gap on their own.
+
+| Spec item (Reply, p.16–17) | Our choice | Rationale |
+|---|---|---|
+| *“Historical baseline using rolling averages and seasonal decomposition”* | We use cross-sectional MAD z-scores (multi-agent) and Tukey IQR + 2.5σ z-score (classical) | The dataset has only 13 months and ~567 routes — too few periods per route for a credible seasonal decomposition. Rolling averages over a 13-month window collapse to a near-mean. Robust per-population z-scores give a defensible, sample-size-friendly baseline that still answers the same question (“is this route deviating from the population norm?”). |
+| *“Anomaly detection using IsolationForest, LOF, OR Z-score”* | We use a **weighted ensemble of all four** (IF 0.35 · LOF 0.30 · Z 0.15 · Autoencoder 0.20) | The autoencoder catches non-linear feature interactions the other three miss. It has graceful degradation: when fewer than 30 normal samples are available the autoencoder is excluded and the remaining three weights are renormalised, so small perimeters still work. |
+| *Multi-agent topology shows 5 agents (Data → Baseline → Outlier → Risk Profiling → Report)* | We honour exactly this 5-agent topology, **with feature engineering inside `DataAgent`** | The Reply diagram doesn’t show a separate FeatureAgent. We tried that earlier and ended up with six visible agents — adding an orchestration node for a deterministic transformation didn’t buy resilience or branching. Inlining FeatureBuilder inside DataAgent keeps the spec count and avoids LangGraph hop overhead. |
+
 ## Design choices we want to flag explicitly
 
 - **Different baseline methods on purpose.** Classical uses hybrid Tukey IQR + 2.5σ z-score (per-feature flags, more interpretable when justifying a single anomalous feature); multi-agent uses robust MAD z-scores (single composite `baseline_score` per route, more robust to outliers, easier to consume downstream). Both methods are deliberately idiomatic for their architecture; the comparative analysis (notebook 07) shows the final outputs converge regardless.
@@ -255,6 +330,23 @@ Then check **Enable LLM Report** in the dashboard sidebar before running. Withou
 - **Same business rules in both pipelines.** The classical `step_post_processing` and the multi-agent `RiskProfilingAgent` share five identical rules with identical thresholds (high INTERPOL %, high rejection rate, low closure on volume, multi-source alarms, high average alarm rate). The `br_score` Pearson correlation between the two pipelines is exactly **1.000** — by construction.
 
 ---
+
+## Limits of the current work
+
+- **Single dataset, single client.** The whole evaluation runs on the NoiPA airport dataset (567 routes, 13 months). We have not stress-tested the pipelines against datasets with materially different schemas (the LLM schema-normalisation layer in `DataAgent` is implemented but never had to fire on real data).
+- **No temporal model.** Both pipelines treat each route as a snapshot. Trends, seasonality and concept drift are out of scope. A route whose risk increases month-over-month would not be flagged as “rising” by either system.
+- **Threshold sensitivity not characterised.** The five business-rule thresholds (high_interpol_pct ≥ 0.30, etc.) are inherited from the classical post-processing layer; we have unit tests that verify each rule fires at the threshold but no sensitivity analysis (how much do the final ALTA/MEDIA counts move if we change a threshold by ±0.05?).
+- **LangGraph used in linear mode.** Conditional edges only implement stop-on-error. We do not exploit branching, loops, or supervisor patterns. The multi-agent value comes from orchestration robustness and modularity, not from emergent agent-to-agent reasoning.
+- **LLM narratives are not validated.** We instruct Claude to cite specific drivers and we tag the prompt to refuse hallucinations, but we do not programmatically check that every generated narrative respects the requested format.
+- **Comparative analysis uses 567 routes only.** The agreement metrics (97.2 %, r = 0.9847, etc.) are statistically representative but were not bootstrapped — confidence intervals on the agreement number are not reported.
+
+## Future work
+
+- **Temporal extension.** Add a ChangePoint detector or a STL decomposition per route as a sixth agent (`TrendAgent`) that flags routes whose risk profile is drifting upward across the 13 months. This would honour the spec’s “rolling averages / seasonal decomposition” call-out without sacrificing the cross-sectional baseline that works today.
+- **Real LangGraph branching.** A supervisor pattern where a sub-graph re-runs OutlierAgent with a stricter threshold on routes whose first-pass `final_risk == ALTO` to confirm or downgrade them. This is where the multi-agent architecture would start earning its complexity beyond orchestration.
+- **A/B threshold dashboard.** Streamlit slider that lets an operator move any of the five business-rule thresholds and see the live impact on `final_risk` distribution, side-by-side with a “sensitivity matrix”.
+- **Dataset benchmark suite.** A handful of synthetic datasets with controlled anomaly rates to characterise precision/recall and demonstrate the LLM schema-normalisation layer in action.
+- **Multi-language LLM output.** The `ReportAgent` is currently English-only by hard prompt. A locale parameter that switches the narrative language for the operator is a small UX win that would also exercise prompt-engineering rigor.
 
 ## Tech stack
 

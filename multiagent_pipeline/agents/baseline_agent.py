@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from multiagent_pipeline.state import AgentState, BASELINE_FEATURES, PATHS
+from multiagent_pipeline.state import AgentState, BASELINE_FEATURES
 
 logger = logging.getLogger(__name__)
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -61,7 +61,7 @@ def run_baseline_agent(
     try:
         df_features = state.get("df_features")
         if df_features is None or not isinstance(df_features, pd.DataFrame):
-            raise ValueError("df_features missing: run FeatureAgent first.")
+            raise ValueError("df_features missing: run DataAgent first.")
         if df_features.empty:
             raise ValueError("df_features is empty: cannot compute baseline.")
 

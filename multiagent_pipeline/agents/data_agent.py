@@ -177,7 +177,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PATHS = {k: str(_PROJECT_ROOT / v) if not Path(v).is_absolute() else v
          for k, v in PATHS.items()}
 
-# DataAgent outputs (artefacts for audit + cross-process handoff to FeatureAgent)
+# DataAgent outputs (artefacts for audit + downstream consumers)
 DATA_AGENT_OUTPUT_JSON       = _PROJECT_ROOT / "data" / "processed" / "data_agent_output.json"
 DATA_AGENT_OUTPUT_CSV        = _PROJECT_ROOT / "data" / "processed" / "data_agent_filtered.csv"
 DATA_AGENT_ALLARMI_CSV       = _PROJECT_ROOT / "data" / "processed" / "data_agent_allarmi.csv"

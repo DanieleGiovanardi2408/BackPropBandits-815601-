@@ -84,61 +84,12 @@ class Perimeter(BaseModel):
     zona: Optional[int] = Field(None, description="Geographic zone 1-9")
 
 
-class DataAgentOutput(BaseModel):
-    """DataAgent output — passed to BaselineAgent.
-
-    DataAgent performs both perimeter filtering AND feature engineering
-    (via FeatureBuilder) so its output already contains the 54 route-level
-    features used by every downstream agent.
-    """
-    n_righe: int
-    n_rotte_uniche: int
-    colonne: list[str]
-    anni_presenti: list[int]
-    paesi_partenza_top5: list[str]
-    n_features: int = Field(default=0, description="Number of engineered features per route")
-    feature_cols: list[str] = Field(default_factory=list, description="List of feature column names")
-
-
-class BaselineAgentOutput(BaseModel):
-    """BaselineAgent output — passed to OutlierAgent."""
-    n_features_baseline: int
-    z_score_threshold: float
-    source: str = Field(description="'precomputed' or 'computed_live'")
-    n_rotte_con_zscore: int
-
-
-class OutlierAgentOutput(BaseModel):
-    """OutlierAgent output — passed to RiskProfilingAgent."""
-    n_alta: int
-    n_media: int
-    n_normale: int
-    soglia_alta: float
-    soglia_media: float
-    metodo_ensemble: str = "weighted_average"
-    top_rotte: list[dict] = Field(description="Top 10 anomalous routes with scores")
-
-
-class RiskProfilingAgentOutput(BaseModel):
-    """RiskProfilingAgent output — passed to ReportAgent.
-
-    Mirrors the classical post-processing layer: business rules, blended
-    confidence and final risk classification (CRITICO/ALTO/MEDIO/BASSO).
-    """
-    n_routes: int
-    n_critico: int
-    n_alto: int
-    n_medio: int
-    n_basso: int
-    rule_hits: dict = Field(description="Hits per business rule (br_high_*)")
-    top_routes: list[dict] = Field(description="Top 10 routes by confidence")
-
-
-class ReportAgentOutput(BaseModel):
-    """ReportAgent final output."""
-    n_anomalie_spiegate: int
-    report_path: str
-    sommario: str = Field(description="Plain-English summary of the report")
+# Per-agent output schemas are documented in each agent's docstring and in
+# the AgentState TypedDict above. We deliberately do NOT define a pydantic
+# BaseModel per agent because runtime validation is unnecessary (the contract
+# is already enforced by the conditional edges in main.py and by the
+# `_safe_col`-style defensive parsing inside each agent). Keeping unused
+# pydantic classes here would just be dead documentation that drifts.
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -179,7 +130,7 @@ BASELINE_FEATURES = [
     "alarm_per_invest",
 ]
 
-# Key columns of the merged dataset (DataAgent → FeatureAgent contract)
+# Key columns of the merged dataset (produced by DataAgent for downstream agents)
 DATASET_MERGED_COLS = [
     "AREOPORTO_ARRIVO", "AREOPORTO_PARTENZA", "ANNO_PARTENZA", "MESE_PARTENZA",
     "PAESE_PART", "ZONA", "TOT", "MOTIVO_ALLARME", "flag_rischio",
