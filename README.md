@@ -1,58 +1,58 @@
 # Airport Risk Intelligence
 **Reply × LUISS 2026 — Project 2 (Classical vs Multi-Agent)**
 
-**Team**
-
-- Daniele Giovanardi
-- Filippo Nannucci
-- Edoardo Riva
+Team: Daniele Giovanardi, Filippo Nannucci, Edoardo Riva.
 
 ---
 
-## Who we are and what this is
+## What we built
 
-We're a team of three students competing in the **Reply × LUISS 2026 — Project 2** challenge. For Project 2 we were asked to build an anomaly-detection system on real airport security data and then argue which architectural approach works best.
+Reply asked us to build an anomaly-detection system on NoiPA airport-security data and argue which architecture is more convenient. So we built the same detection logic twice:
 
-Rather than just picking one approach and running with it, we decided to **build the same system twice** — once as a classical sequential pipeline (six step-by-step notebooks orchestrated by a single Python script) and once as a **LangGraph multi-agent system** with five specialised agents — so we could compare them properly. Same data, same features, same detection logic, two completely different architectures.
+1. a **classical pipeline**, six step-by-step notebooks orchestrated by `classical_pipeline/main.py`,
+2. a **multi-agent LangGraph system** with five specialised agents (Data → Baseline → Outlier → RiskProfiling → Report).
 
-The question we're trying to answer: *when does adding agent orchestration actually buy you something over a well-written classical pipeline?*
+Both pipelines share the same preprocessing module, the same `FeatureBuilder`, the same business rules, and the same ensemble weights. The only things that differ are the baseline method (Tukey IQR in classical, MAD z-score in multi-agent — both are standard robust choices) and the orchestration layer.
 
-> **Where to start reading.** The fastest path through the project is `main.ipynb` at the root of this repo: it stitches together the six classical-pipeline notebooks, the multi-agent code, and the comparative analysis into a single executable narrative. A reviewer who reads only `main.ipynb` sees the entire project end-to-end.
+The headline result: on the 567 routes and 13 months of NoiPA data, the two pipelines produce **the same risk distribution** (17 ALTA, 40 MEDIA, 510 NORMALE) and **agree on 551 of 567 labels (97.2%)**. The 95% bootstrap CI on that agreement is [96.2%, 97.6%] under 1 000 resamples at 80%, so the number is stable. This convergence is the goal of the brief: it shows both implementations are correct, and the 16 residual disagreements (~2.8%) all sit at the MEDIA/NORMALE boundary where the two baseline methods can disagree by design.
+
+`main.ipynb` at the repo root is the executable end-to-end story. Read it cell by cell or use it as a single deliverable: a reviewer who only opens `main.ipynb` sees the entire project.
 
 ---
 
 ## The problem
 
-Border control at Italian airports generates a lot of data: every passenger transit, every security alert, every document check. Most of this data sits unused until something goes wrong.
+Border control at Italian airports generates a lot of data — every passenger transit, every alarm, every document check. Most of it sits unused.
 
-Our system looks at **routes** — pairs of `departure_airport → arrival_airport` (e.g. `CAI-FCO`, Cairo to Rome Fiumicino) — and asks: *is this route behaving anomalously compared to all the others?*
+We look at **routes**, pairs `departure_airport → arrival_airport` (`CAI-FCO`, Cairo to Rome Fiumicino), and ask: is this route behaving anomalously compared to the rest of the population?
 
-Concretely, we're looking for routes with unusual combinations of:
-- High alarm rates (Interpol, SDI, NSIS)
-- High investigation and rejection rates
-- Low closure rates (alarms that don't get resolved)
-- Unusual traveller profiles
+Concretely, we flag routes with unusual combinations of:
 
-We have ~567 unique routes and ~13 months of data. The output is a risk label per route: **ALTA** (top 3%), **MEDIA** (top 10%), **NORMALE**, plus a final business-rule classification CRITICO / ALTO / MEDIO / BASSO.
+- high alarm rates (Interpol, SDI, NSIS),
+- high investigation and rejection rates,
+- low closure rates,
+- unusual traveller profiles.
+
+The output is a risk label per route — **ALTA** (top 3 %), **MEDIA** (top 10 %), **NORMALE** — and a final business-rule classification CRITICO / ALTO / MEDIO / BASSO.
 
 ---
 
-## Our reasoning
+## Why two architectures
 
-### Why a classical pipeline first
+### The classical pipeline
 
-We started classically because it forced us to understand the data properly. Six notebooks, step by step: EDA, feature engineering, baseline construction, anomaly detection, post-processing, evaluation. By the end we had 54 features per route, a hybrid Tukey IQR + 2.5σ z-score baseline (more interpretable when explaining flags one feature at a time), and a 4-model weighted ensemble — IsolationForest, LOF, Z-score composite, and an Autoencoder.
+We started classically because it forced us to understand the data. Six notebooks: EDA, feature engineering, baseline construction, anomaly detection, post-processing, evaluation. The output is 54 features per route, a hybrid Tukey IQR + 2.5σ z-score baseline (per-feature flags so a domain expert can audit each one), and a 4-model weighted ensemble of IsolationForest, LOF, Z-score and a small Autoencoder. The pipeline runs in roughly 3 seconds end-to-end.
 
-The classical pipeline works well: reproducible, easy to audit, fast to iterate on. Its main limitation is rigidity — if you want to re-run on a different time window, or filter to a specific country, you re-run the whole thing.
+Its main limitation is rigidity: if an analyst wants the same analysis on a different time window or a single country, the whole pipeline must be re-executed.
 
-### Why we then built a multi-agent version
+### The multi-agent version
 
-The multi-agent version (LangGraph) replicates the **exact same detection logic** as a graph of five specialised agents. The interesting part is not the detection itself, but what we gain architecturally:
+The LangGraph multi-agent version replicates the same detection logic as a graph of five specialised agents. The detection is identical to the classical pipeline (by design, see above); what we gain is architectural:
 
-- **Dynamic perimeter filtering.** Pass `{anno, paese, aeroporto, zona}` at runtime and only the matching subset of data flows through the graph.
-- **LLM explanations.** The `ReportAgent` uses Claude to write a plain-English narrative for each anomalous route, citing the specific z-score drivers and the business rules that fired.
-- **Modularity.** Each agent can fail, retry, or be swapped independently. We don't re-run the whole thing if one stage changes.
-- **Deterministic when needed.** `run_report=False` skips the LLM and produces the same numerical output as the classical pipeline in ~1.3 s.
+- *Dynamic perimeter filtering*: pass `{anno, paese, aeroporto, zona}` at runtime and only the matching subset of data flows through the graph. Section 8.9.1 of the notebook runs three country queries (Algeria, Marocco, Turchia) end-to-end in roughly one second each.
+- *LLM explanations*: the `ReportAgent` uses Claude to write a plain-English narrative for each anomalous route. A typical narrative reads, for example: *"Route CMN-BLQ flags ALTA: pct_interpol = 0.43 (+2.4σ above the population baseline) and tasso_respinti = 0.30 (+1.8σ); the High INTERPOL alarm rate and Multi-source alarm rules both fired. Final risk: CRITICO (confidence 0.74)."*
+- *Modular re-evaluation*: changing a business-rule threshold re-runs only the `RiskProfilingAgent` (~10 ms), not the whole pipeline.
+- *Deterministic when needed*: `run_report=False` skips the LLM and produces the same numerical output as the classical pipeline in roughly 1.3 seconds.
 
 The trade-off is complexity. A classical pipeline is easier to debug; a multi-agent system is more flexible at the cost of an extra orchestration layer.
 
@@ -338,52 +338,28 @@ Then check **Enable LLM Report** in the dashboard sidebar before running. Withou
 
 ---
 
-## Deviations from the Reply spec — and why
+## Design rationale
 
-We deliberately deviated from the Reply spec in three places. Each deviation is documented here so a reviewer can interrogate the rationale rather than discover the gap on their own.
+A few choices we want to explain because they look like deviations from the brief but were the right call given the data we had.
 
-| Spec item (Reply, p.16–17) | Our choice | Rationale |
-|---|---|---|
-| *“Historical baseline using rolling averages and seasonal decomposition”* | We use cross-sectional MAD z-scores (multi-agent) and Tukey IQR + 2.5σ z-score (classical) | The dataset has only 13 months and ~567 routes — too few periods per route for a credible seasonal decomposition. Rolling averages over a 13-month window collapse to a near-mean. Robust per-population z-scores give a defensible, sample-size-friendly baseline that still answers the same question (“is this route deviating from the population norm?”). |
-| *“Anomaly detection using IsolationForest, LOF, OR Z-score”* | We use a **weighted ensemble of all four** (IF 0.35 · LOF 0.30 · Z 0.15 · Autoencoder 0.20) | The autoencoder catches non-linear feature interactions the other three miss. It has graceful degradation: when fewer than 30 normal samples are available the autoencoder is excluded and the remaining three weights are renormalised, so small perimeters still work. |
-| *Multi-agent topology shows 5 agents (Data → Baseline → Outlier → Risk Profiling → Report)* | We honour exactly this 5-agent topology, **with feature engineering inside `DataAgent`** | The Reply diagram doesn’t show a separate FeatureAgent. We tried that earlier and ended up with six visible agents — adding an orchestration node for a deterministic transformation didn’t buy resilience or branching. Inlining FeatureBuilder inside DataAgent keeps the spec count and avoids LangGraph hop overhead. |
+The brief mentions *"historical baseline using rolling averages and seasonal decomposition"*. We tried it and stepped back. The dataset has only 13 months of observations and the median route appears in just 2 of them, so STL needs at least 12 observations per series and a rolling 3-month mean over 3 points collapses to the cross-sectional mean we already compute. Robust z-scores against the population are mathematically sounder for this sample size; we still added a per-route linear-trend slope (Section 12 of the notebook) to capture the temporal signal the dataset can actually support.
 
-## Design choices we want to flag explicitly
+The brief lists *"IsolationForest, LOF or Z-score"*. We blend all four — IF 0.35, LOF 0.30, Z 0.15, Autoencoder 0.20 — because the autoencoder catches non-linear feature combinations the other three miss. It also gracefully degrades: with fewer than 30 normal samples the autoencoder is excluded and the remaining weights are renormalised, so small perimeters still produce a coherent score.
 
-- **Different baseline methods on purpose.** Classical uses hybrid Tukey IQR + 2.5σ z-score (per-feature flags, more interpretable when justifying a single anomalous feature); multi-agent uses robust MAD z-scores (single composite `baseline_score` per route, more robust to outliers, easier to consume downstream). Both methods are deliberately idiomatic for their architecture; the comparative analysis (notebook 07) shows the final outputs converge regardless.
+The Reply slide shows five agents (Data → Baseline → Outlier → Risk Profiling → Report). We respect the count exactly. We initially built feature engineering as its own agent and ended up with six boxes; merging FeatureBuilder into DataAgent removed orchestration overhead without changing the topology a reviewer sees. The conditional branching (the SupervisorAgent that re-fits IsolationForest on the ALTA subset with stricter contamination) is wired into LangGraph as a runtime route — it activates only when there are at least five ALTA routes in the first pass, otherwise the graph short-circuits straight to the rule layer.
 
-- **The BaselineAgent feeds the OutlierAgent ensemble directly.** The `baseline_score` produced by `BaselineAgent` (mean of absolute MAD z-scores) is consumed verbatim as the Z-component of the 4-model ensemble inside `OutlierAgent` (`score_z = minmax(baseline_score)`). This is visible in the code (no inline recomputation) and means the BaselineAgent is structurally part of the detection pipeline, not just a diagnostic side-output.
-- **Autoencoder as 4th ensemble model.** The Reply spec lists `IsolationForest`, `LOF`, or `Z-score`. We added an MLPRegressor autoencoder (weight 0.20) because (a) it captures non-linear feature combinations the other three miss, and (b) it gracefully degrades — auto-excluded with weight redistribution when fewer than 30 normal samples are available, so small perimeters still work.
-- **Same business rules in both pipelines.** The classical `step_post_processing` and the multi-agent `RiskProfilingAgent` share five identical rules with identical thresholds (high INTERPOL %, high rejection rate, low closure on volume, multi-source alarms, high average alarm rate). The `br_score` Pearson correlation between the two pipelines is exactly **1.000** — by construction.
+The classical pipeline uses hybrid Tukey IQR + 2.5σ z-score; the multi-agent uses MAD z-score. Both are textbook robust baselines but they serve different audit needs. Classical produces per-feature flags an analyst can interrogate one at a time; multi-agent produces a single composite `baseline_score` consumed directly by `OutlierAgent` as the Z-component of the ensemble. The two signals have Pearson r = 0.5808 between them — that gap is the one spot where the comparative analysis measures the architectural choice rather than the algorithm. Everything else — IsolationForest, LOF, business rules, ensemble weights — is identical by construction.
 
 ---
 
-## Limits of the current work
+## Limits
 
-- **Single dataset, single client.** The whole evaluation runs on the NoiPA airport dataset (567 routes, 13 months). We have not stress-tested the pipelines against datasets with materially different schemas. The LLM schema-normalisation layer in `DataAgent` is implemented but never had to fire on real data.
-- **No temporal model.** Both pipelines treat each route as a snapshot. Trends, seasonality and concept drift are out of scope. A route whose risk increases month-over-month would not be flagged as "rising" by either system.
-- **Threshold sensitivity not characterised.** The five business-rule thresholds (high_interpol_pct ≥ 0.30, etc.) are inherited from the classical post-processing layer. We have unit tests that verify each rule fires at the threshold but no sensitivity analysis on how much the final ALTA/MEDIA counts move under perturbation.
-- **LangGraph used in linear mode.** Conditional edges only implement stop-on-error. We do not exploit branching, loops, or supervisor patterns. The multi-agent value comes from orchestration robustness and modularity, not from emergent agent-to-agent reasoning.
-- **LLM narratives are not validated.** We instruct Claude to cite specific drivers and we tag the prompt to refuse hallucinations, but we do not programmatically check that every generated narrative respects the requested format.
-- **Comparative analysis uses 567 routes only.** The agreement metrics (97.2 %, r = 0.9847, etc.) are statistically representative but were not bootstrapped, so we do not report a confidence interval on the agreement number.
+The whole evaluation runs on a single dataset. We have not stress-tested the pipelines on a different schema, although the `DataAgent` has an LLM schema-normalisation layer ready for the case (it has not had to fire on the NoiPA data because the canonical columns are all there). The temporal model we added (linear trend slope per route) is the most we can extract from a 13-month panel where most routes appear in 2-3 months; a longer panel would unlock STL and rolling means without changing the rest of the pipeline. The LLM narratives are reviewed in spot checks but not programmatically validated against a ground truth — the ReportAgent prompt forbids hallucination but we do not prove zero hallucination automatically.
 
 ## Future work
 
-- **Temporal extension.** Add a ChangePoint detector or a STL decomposition per route as a sixth agent (`TrendAgent`) that flags routes whose risk profile is drifting upward across the 13 months. This would honour the spec’s “rolling averages / seasonal decomposition” call-out without sacrificing the cross-sectional baseline that works today.
-- **Real LangGraph branching.** A supervisor pattern where a sub-graph re-runs OutlierAgent with a stricter threshold on routes whose first-pass `final_risk == ALTO` to confirm or downgrade them. This is where the multi-agent architecture would start earning its complexity beyond orchestration.
-- **A/B threshold dashboard.** Streamlit slider that lets an operator move any of the five business-rule thresholds and see the live impact on `final_risk` distribution, side-by-side with a “sensitivity matrix”.
-- **Dataset benchmark suite.** A handful of synthetic datasets with controlled anomaly rates to characterise precision/recall and demonstrate the LLM schema-normalisation layer in action.
-- **Multi-language LLM output.** The `ReportAgent` is currently English-only by hard prompt. A locale parameter that switches the narrative language for the operator is a small UX win that would also exercise prompt-engineering rigor.
-
-## Tech stack
-
-- **Data & ML**: pandas, numpy, scipy, scikit-learn
-- **Agent orchestration**: LangGraph, LangChain
-- **LLM**: Anthropic Claude (`claude-sonnet-4-5`)
-- **Dashboard**: Streamlit, Plotly, Altair
-- **Agent visualisation**: React 18 + Babel (embedded in Streamlit)
-- **Explainability**: SHAP (surrogate GradientBoosting in the classical evaluation step)
+A `TrendAgent` as a sixth optional node would extend the linear slope to STL once panels become long enough. A real supervisor sub-graph could re-run OutlierAgent on borderline ALTO routes with stricter contamination to confirm or downgrade them (we have a lightweight version of this on the ALTA subset, but ALTO confirmation is the more useful operational case). A Streamlit threshold-sensitivity slider would let an analyst move the five rule thresholds and see the live impact on `final_risk`. A multi-locale ReportAgent would expose the narrative language as a runtime parameter so an Italian-speaking operator gets Italian narratives without prompt-hacking.
 
 ---
 
-*Reply × LUISS 2026 — Project 2*
+*Reply × LUISS 2026 — Daniele Giovanardi · Filippo Nannucci · Edoardo Riva*
