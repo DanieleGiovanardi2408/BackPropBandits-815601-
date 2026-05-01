@@ -114,20 +114,28 @@ def generate_explanation(context: str, llm: ChatAnthropic) -> str:
     """Tool 2 — generate_explanation(context)
 
     Generates a narrative explanation of the anomalous route using a real LLM.
-    The prompt explicitly requires citing the top drivers with their values.
+    The prompt requires the LLM to integrate evidence from BOTH halves of
+    the multi-agent pipeline: statistical drivers (z-scores produced by the
+    BaselineAgent) and business-rule drivers (RiskProfilingAgent).
     """
     system = (
-        "You are an airport security risk analyst. "
-        "You MUST write your response in English only. "
+        "You are an airport security risk analyst writing for border-control "
+        "operators. You MUST write your response in English only. "
         "Do not use Italian or any other language, regardless of the language of the input data."
     )
     user = (
-        "Analyze the route data below and explain in exactly 2-3 English sentences why this route is anomalous. "
-        "You MUST cite at least 2 of the anomaly drivers listed, including each driver's numeric value "
-        "and its deviation from the baseline (sigma). "
-        "Do not invent or assume any data not explicitly present.\n\n"
+        "Analyze the route data below and explain in 2-4 English sentences why this route is anomalous "
+        "and what its risk profile means for operators.\n\n"
+        "Your explanation MUST:\n"
+        "  - cite at least TWO statistical drivers from the list, including each driver's numeric value "
+        "and its deviation from the baseline (in sigma units);\n"
+        "  - cite at least ONE business rule from the list of rules that fired, OR explicitly state "
+        "that no business rule fired if the list is empty;\n"
+        "  - reference the final risk classification (CRITICO / ALTO / MEDIO / BASSO) so the reader "
+        "knows the operational severity, not just the ML score.\n\n"
+        "Do not invent or assume any data that is not explicitly present below.\n\n"
         f"Route data:\n{context}\n\n"
-        "IMPORTANT: Your answer must be in English only."
+        "IMPORTANT: Your answer must be in English only and must integrate both kinds of drivers."
     )
     from langchain_core.messages import SystemMessage, HumanMessage
     response = llm.invoke([SystemMessage(content=system), HumanMessage(content=user)])
@@ -176,14 +184,28 @@ def run_report_agent(
         if use_llm and not dry_run and not get_anthropic_api_key():
             raise ValueError("ANTHROPIC_API_KEY not set: cannot use the LLM ReportAgent.")
 
-        df = state.get("df_anomalies")
-        a_meta = state.get("anomaly_meta") or {}
-        if a_meta.get("error"):
-            raise ValueError(f"anomaly_meta contains error: {a_meta['error']}")
+        # Prefer df_risk (contains business-rule columns, final_risk and
+        # risk_drivers from the RiskProfilingAgent) and fall back to
+        # df_anomalies for backward compatibility.
+        df = state.get("df_risk")
+        upstream_meta = state.get("risk_meta") or {}
+        used_risk_layer = isinstance(df, pd.DataFrame) and not df.empty
+
+        if not used_risk_layer:
+            df = state.get("df_anomalies")
+            upstream_meta = state.get("anomaly_meta") or {}
+            logger.info("ReportAgent -- df_risk missing/empty, falling back to df_anomalies")
+
+        if upstream_meta.get("error"):
+            raise ValueError(f"upstream meta contains error: {upstream_meta['error']}")
         if df is None or not isinstance(df, pd.DataFrame):
-            raise ValueError("df_anomalies missing: run OutlierAgent first.")
+            raise ValueError("df_risk/df_anomalies missing: run upstream agents first.")
         if df.empty:
-            raise ValueError("df_anomalies is empty: cannot generate report.")
+            raise ValueError("upstream DataFrame is empty: cannot generate report.")
+        # ``a_meta`` is what the existing summary builder expects (counts of
+        # ALTA/MEDIA/NORMALE + thresholds). Always populate it from anomaly_meta
+        # when present, falling back to the upstream meta otherwise.
+        a_meta = state.get("anomaly_meta") or upstream_meta
 
         perimeter = state.get("perimeter") or {}
         n_tot = int(len(df))
@@ -207,8 +229,12 @@ def run_report_agent(
             .copy()
         )
         full_rows = explain_df.to_dict(orient="records")
+        # Output columns include the RiskProfilingAgent layer so consumers
+        # of the JSON report (Streamlit, downstream auditors) see the full
+        # picture, not just the ML ensemble.
         _output_cols = ["ROTTA", "PAESE_PART", "ZONA", "risk_label",
-                        "ensemble_score", "score_composito", "baseline_score"]
+                        "ensemble_score", "score_composito", "baseline_score",
+                        "final_risk", "confidence", "br_score", "risk_drivers"]
 
         findings = []
         for row in full_rows:

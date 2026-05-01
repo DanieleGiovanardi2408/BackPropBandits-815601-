@@ -1159,7 +1159,13 @@ def main() -> None:
     if last_run:
         state   = last_run["state"]
         summary = last_run["summary"]
+        # Prefer the richer df_risk (RiskProfilingAgent output: br_*, br_score,
+        # confidence, final_risk, risk_drivers) and fall back to df_anomalies
+        # for older runs / configurations where the risk layer is missing.
+        df_risk = state.get("df_risk")
         df_anom = state.get("df_anomalies")
+        df_view = df_risk if isinstance(df_risk, pd.DataFrame) and not df_risk.empty else df_anom
+        risk_meta = state.get("risk_meta") or {}
 
         report_obj = _safe_read_report(state.get("report_path"), state.get("report"))
 
@@ -1175,31 +1181,71 @@ def main() -> None:
         # ── Tab 1: Route Map ──────────────────────────────────────────────────
         with tab1:
             _show_route_map_tab(
-                df_anom if isinstance(df_anom, pd.DataFrame) else None,
+                df_view if isinstance(df_view, pd.DataFrame) else None,
                 report_obj,
             )
 
         # ── Tab 2: Anomalies ──────────────────────────────────────────────────
         with tab2:
-            st.markdown("### Risk distribution")
-            if isinstance(df_anom, pd.DataFrame) and not df_anom.empty:
-                risk_col = "risk_label" if "risk_label" in df_anom.columns else "anomaly_label"
-                if risk_col in df_anom.columns:
+            if isinstance(df_view, pd.DataFrame) and not df_view.empty:
+                using_risk = "final_risk" in df_view.columns
+
+                # ML risk distribution (ALTA/MEDIA/NORMALE) — always available
+                st.markdown("### ML risk distribution (OutlierAgent)")
+                risk_col = "risk_label" if "risk_label" in df_view.columns else "anomaly_label"
+                if risk_col in df_view.columns:
                     counts = (
-                        df_anom[risk_col]
+                        df_view[risk_col]
                         .value_counts()
                         .reindex(["ALTA", "MEDIA", "NORMALE"], fill_value=0)
                     )
                     st.bar_chart(counts)
-                visible_cols = [
-                    c for c in [
-                        "ROTTA", "risk_label", "ensemble_score",
-                        "baseline_score", "score_composito",
-                    ] if c in df_anom.columns
-                ]
+
+                # Final-risk distribution (CRITICO/ALTO/MEDIO/BASSO) from
+                # RiskProfilingAgent — only if df_risk is present.
+                if using_risk:
+                    st.markdown("### Final risk classification (RiskProfilingAgent)")
+                    final_counts = (
+                        df_view["final_risk"]
+                        .value_counts()
+                        .reindex(["CRITICO", "ALTO", "MEDIO", "BASSO"], fill_value=0)
+                    )
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("CRITICO", int(final_counts.get("CRITICO", 0)))
+                    c2.metric("ALTO",    int(final_counts.get("ALTO", 0)))
+                    c3.metric("MEDIO",   int(final_counts.get("MEDIO", 0)))
+                    c4.metric("BASSO",   int(final_counts.get("BASSO", 0)))
+
+                    # Business-rule hit counts (RiskProfilingAgent meta)
+                    rh = risk_meta.get("rule_hits") or {}
+                    if rh:
+                        st.markdown("### Business rules — hit counts")
+                        rh_df = pd.DataFrame(
+                            [(k.replace("br_", ""), int(v)) for k, v in rh.items()],
+                            columns=["business_rule", "n_routes"],
+                        )
+                        st.dataframe(rh_df, use_container_width=True, hide_index=True)
+
+                # Top routes table — show the richer risk-layer columns when available
                 st.markdown("### Top routes")
-                score_col = "ensemble_score" if "ensemble_score" in df_anom.columns else df_anom.columns[0]
-                show_df   = df_anom.sort_values(score_col, ascending=False)[visible_cols].head(50)
+                preferred_cols = [
+                    "ROTTA", "PAESE_PART", "ZONA",
+                    "risk_label", "final_risk", "confidence",
+                    "ensemble_score", "br_score", "baseline_score",
+                    "risk_drivers",
+                ]
+                visible_cols = [c for c in preferred_cols if c in df_view.columns]
+                sort_col = (
+                    "confidence" if "confidence" in df_view.columns
+                    else "ensemble_score" if "ensemble_score" in df_view.columns
+                    else df_view.columns[0]
+                )
+                show_df = df_view.sort_values(sort_col, ascending=False)[visible_cols].head(50).copy()
+                # risk_drivers is a list — flatten for the table
+                if "risk_drivers" in show_df.columns:
+                    show_df["risk_drivers"] = show_df["risk_drivers"].apply(
+                        lambda v: " | ".join(v) if isinstance(v, list) else (v or "")
+                    )
                 st.dataframe(show_df, use_container_width=True)
                 st.download_button(
                     "Download anomalies (CSV)",
@@ -1221,7 +1267,7 @@ def main() -> None:
                     "Classical `final_report.csv` not found in `data/processed/`. "
                     "Run the classical pipeline notebooks first (01→06)."
                 )
-            elif not isinstance(df_anom, pd.DataFrame) or df_anom.empty:
+            elif not isinstance(df_view, pd.DataFrame) or df_view.empty:
                 st.info("Run the multi-agent pipeline to enable the comparison.")
             else:
                 cl_cols      = ["ROTTA", "anomaly_score", "anomaly_label"]
@@ -1230,7 +1276,7 @@ def main() -> None:
                     st.error(f"Missing columns in classical report: {missing_cl}")
                 else:
                     df_cmp = cl[cl_cols].merge(
-                        df_anom[["ROTTA", "ensemble_score", "risk_label"]],
+                        df_view[["ROTTA", "ensemble_score", "risk_label"]],
                         on="ROTTA", how="inner",
                     )
                     if df_cmp.empty:
@@ -1332,15 +1378,31 @@ def main() -> None:
             if report_obj:
                 st.markdown("### Summary")
                 st.write(report_obj.get("summary", "N/A"))
+
+                # RiskProfilingAgent recap up front so the user sees the
+                # business-rule layer next to the LLM narratives.
+                if risk_meta and not risk_meta.get("error"):
+                    st.markdown("### Final risk classification (RiskProfilingAgent)")
+                    cc = st.columns(4)
+                    cc[0].metric("CRITICO", int(risk_meta.get("n_critico", 0)))
+                    cc[1].metric("ALTO",    int(risk_meta.get("n_alto", 0)))
+                    cc[2].metric("MEDIO",   int(risk_meta.get("n_medio", 0)))
+                    cc[3].metric("BASSO",   int(risk_meta.get("n_basso", 0)))
+
                 findings = report_obj.get("findings", [])
                 if findings:
                     st.markdown("### Findings")
-                    st.dataframe(pd.DataFrame(findings), use_container_width=True)
+                    findings_df = pd.DataFrame(findings)
+                    if "risk_drivers" in findings_df.columns:
+                        findings_df["risk_drivers"] = findings_df["risk_drivers"].apply(
+                            lambda v: " | ".join(v) if isinstance(v, list) else (v or "")
+                        )
+                    st.dataframe(findings_df, use_container_width=True)
                 else:
                     st.caption("No HIGH/MEDIUM risk routes to explain.")
                 st.download_button(
                     "Download report (JSON)",
-                    data=json.dumps(report_obj, indent=2, ensure_ascii=False),
+                    data=json.dumps(report_obj, indent=2, ensure_ascii=False, default=str),
                     file_name="multiagent_report.json",
                     mime="application/json",
                     use_container_width=True,
@@ -1381,6 +1443,7 @@ def main() -> None:
                 "feature_meta":  state.get("feature_meta"),
                 "baseline_meta": state.get("baseline_meta"),
                 "anomaly_meta":  state.get("anomaly_meta"),
+                "risk_meta":     state.get("risk_meta"),
                 "report_path":   state.get("report_path"),
             })
     else:
