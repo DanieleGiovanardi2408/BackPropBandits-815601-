@@ -7,54 +7,57 @@ Team: Daniele Giovanardi, Filippo Nannucci, Edoardo Riva.
 
 ## What we built
 
-Reply asked us to build an anomaly-detection system on NoiPA airport-security data and argue which architecture is more convenient. So we built the same detection logic twice:
+Reply asked us to build an anomaly-detection system on NoiPA airport-security data and to argue which architecture is more convenient. We built the same detection logic twice:
 
-1. a **classical pipeline**, six step-by-step notebooks orchestrated by `classical_pipeline/main.py`,
-2. a **multi-agent LangGraph system** with five specialised agents (Data → Baseline → Outlier → RiskProfiling → Report).
+1. a **classical pipeline**, six step-by-step notebooks driven by `classical_pipeline/main.py`,
+2. a **multi-agent LangGraph system** with five specialised agents (Data, Baseline, Outlier, RiskProfiling, Report).
 
-Both pipelines share the same preprocessing module, the same `FeatureBuilder`, the same business rules, and the same ensemble weights. The only things that differ are the baseline method (Tukey IQR in classical, MAD z-score in multi-agent — both are standard robust choices) and the orchestration layer.
+Both pipelines share the same preprocessing module, the same `FeatureBuilder`, the same business rules and the same ensemble weights. The only differences are the baseline method (Tukey IQR in classical, MAD z-score in multi-agent — both are standard robust choices) and the orchestration layer.
 
-The headline result: on the 567 routes and 13 months of NoiPA data, the two pipelines produce **the same risk distribution** (17 ALTA, 40 MEDIA, 510 NORMALE) and **agree on 551 of 567 labels (97.2%)**. The 95% bootstrap CI on that agreement is [96.2%, 97.6%] under 1 000 resamples at 80%, so the number is stable. This convergence is the goal of the brief: it shows both implementations are correct, and the 16 residual disagreements (~2.8%) all sit at the MEDIA/NORMALE boundary where the two baseline methods can disagree by design.
+On the 567 routes of NoiPA data the two pipelines produce **the same risk distribution** (17 ALTA, 40 MEDIA, 510 NORMALE) and **agree on 551 of 567 labels (97.2%)**. The 95% bootstrap CI on that agreement is [96.2%, 97.6%] over 1 000 resamples at 80%, so the number is stable. This convergence is the point of the brief: it shows that both implementations are correct, and the 16 residual disagreements (~2.8%) all sit at the MEDIA/NORMALE boundary where the two baseline methods can split by design.
 
-`main.ipynb` at the repo root is the executable end-to-end story. Read it cell by cell or use it as a single deliverable: a reviewer who only opens `main.ipynb` sees the entire project.
+`main.ipynb` at the repo root is the executable end-to-end story. Reading it top to bottom is enough to see the whole project; the rest of the repo is the supporting library.
 
 ---
 
 ## The problem
 
-Border control at Italian airports generates a lot of data — every passenger transit, every alarm, every document check. Most of it sits unused.
+Italian border control generates a lot of data: every passenger transit, every alarm, every document check. Most of it goes unused.
 
-We look at **routes**, pairs `departure_airport → arrival_airport` (`CAI-FCO`, Cairo to Rome Fiumicino), and ask: is this route behaving anomalously compared to the rest of the population?
+We look at **routes** (pairs `departure_airport → arrival_airport`, e.g. `CAI-FCO` for Cairo→Rome Fiumicino) and ask: is this route behaving anomalously compared with the rest of the population?
 
-Concretely, we flag routes with unusual combinations of:
+We flag routes with unusual combinations of:
 
 - high alarm rates (Interpol, SDI, NSIS),
 - high investigation and rejection rates,
 - low closure rates,
 - unusual traveller profiles.
 
-The output is a risk label per route — **ALTA** (top 3 %), **MEDIA** (top 10 %), **NORMALE** — and a final business-rule classification CRITICO / ALTO / MEDIO / BASSO.
+The output is a risk label per route (ALTA / MEDIA / NORMALE, defined as the top 3% / top 10% / rest of the ensemble distribution) plus a final business-rule classification CRITICO / ALTO / MEDIO / BASSO.
 
 ---
 
 ## Why two architectures
 
-### The classical pipeline
+### Classical pipeline
 
-We started classically because it forced us to understand the data. Six notebooks: EDA, feature engineering, baseline construction, anomaly detection, post-processing, evaluation. The output is 54 features per route, a hybrid Tukey IQR + 2.5σ z-score baseline (per-feature flags so a domain expert can audit each one), and a 4-model weighted ensemble of IsolationForest, LOF, Z-score and a small Autoencoder. The pipeline runs in roughly 3 seconds end-to-end.
+We started classically because it forced us to look at the data step by step. Six notebooks (EDA, feature engineering, baseline construction, anomaly detection, post-processing, evaluation) take us from the raw CSVs to 54 features per route, a hybrid Tukey IQR + 2.5σ z-score baseline (per-feature flags that a domain expert can audit one at a time), and a weighted ensemble of IsolationForest, LOF, a Z-score signal and a small Autoencoder. End-to-end the pipeline runs in roughly three seconds.
 
-Its main limitation is rigidity: if an analyst wants the same analysis on a different time window or a single country, the whole pipeline must be re-executed.
+Its main limit is rigidity. If an analyst wants the same analysis on a different time window or on one country alone, the whole pipeline must be re-run.
 
-### The multi-agent version
+### Multi-agent version
 
-The LangGraph multi-agent version replicates the same detection logic as a graph of five specialised agents. The detection is identical to the classical pipeline (by design, see above); what we gain is architectural:
+The LangGraph version implements the same detection logic as a graph of five specialised agents. The numbers it produces are identical to the classical pipeline; what we gain is architectural.
 
-- *Dynamic perimeter filtering*: pass `{anno, paese, aeroporto, zona}` at runtime and only the matching subset of data flows through the graph. Section 8.9.1 of the notebook runs three country queries (Algeria, Marocco, Turchia) end-to-end in roughly one second each.
-- *LLM explanations*: the `ReportAgent` uses Claude to write a plain-English narrative for each anomalous route. A typical narrative reads, for example: *"Route CMN-BLQ flags ALTA: pct_interpol = 0.43 (+2.4σ above the population baseline) and tasso_respinti = 0.30 (+1.8σ); the High INTERPOL alarm rate and Multi-source alarm rules both fired. Final risk: CRITICO (confidence 0.74)."*
-- *Modular re-evaluation*: changing a business-rule threshold re-runs only the `RiskProfilingAgent` (~10 ms), not the whole pipeline.
-- *Deterministic when needed*: `run_report=False` skips the LLM and produces the same numerical output as the classical pipeline in roughly 1.3 seconds.
+*Dynamic perimeter filtering.* The `DataAgent` accepts `{anno, paese, aeroporto, zona}` at runtime and only the matching subset of the data flows through the graph. Section 8.9.1 of the notebook runs three country queries (Algeria, Marocco, Turchia) end-to-end in roughly one second each.
 
-The trade-off is complexity. A classical pipeline is easier to debug; a multi-agent system is more flexible at the cost of an extra orchestration layer.
+*LLM explanations.* The `ReportAgent` uses Claude to write a plain-English narrative for every anomalous route. A typical output reads: *"Route CMN-BLQ flags ALTA: pct_interpol = 0.43 (+2.4σ above the population baseline) and tasso_respinti = 0.30 (+1.8σ); the High INTERPOL alarm rate and Multi-source alarm rules both fired. Final risk: CRITICO (confidence 0.74)."*
+
+*Modular re-evaluation.* Changing a business-rule threshold re-runs only the `RiskProfilingAgent` in about ten milliseconds. The classical pipeline would re-run preprocessing, feature engineering, baseline and ensemble for the same effect.
+
+*Deterministic when needed.* Pass `run_report=False` and the multi-agent skips Claude entirely, producing the same numerical output as the classical pipeline in roughly 1.3 seconds.
+
+The trade-off is complexity: a classical pipeline is easier to debug, and a multi-agent system is more flexible at the cost of an extra orchestration layer.
 
 The five agents (Reply spec topology):
 
