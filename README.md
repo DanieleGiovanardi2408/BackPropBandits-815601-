@@ -47,14 +47,14 @@ The classical pipeline works well: reproducible, easy to audit, fast to iterate 
 
 ### Why we then built a multi-agent version
 
-The multi-agent version (LangGraph) replicates the **exact same detection logic** but as a graph of five specialised agents. The interesting part isn't the detection — it's what you gain architecturally:
+The multi-agent version (LangGraph) replicates the **exact same detection logic** as a graph of five specialised agents. The interesting part is not the detection itself, but what we gain architecturally:
 
-- **Dynamic perimeter filtering**: pass `{anno, paese, aeroporto, zona}` at runtime and only the relevant data flows through the graph
-- **LLM explanations**: a `ReportAgent` uses Claude to generate plain-English narratives for each anomalous route, citing the specific z-score drivers and the business rules that fired
-- **Modularity**: each agent fails, retries, or is swapped independently — you don't re-run the whole thing if one stage changes
-- **Deterministic when needed**: `run_report=False` skips the LLM and produces the same numerical output as the classical pipeline in ~1.3 s
+- **Dynamic perimeter filtering.** Pass `{anno, paese, aeroporto, zona}` at runtime and only the matching subset of data flows through the graph.
+- **LLM explanations.** The `ReportAgent` uses Claude to write a plain-English narrative for each anomalous route, citing the specific z-score drivers and the business rules that fired.
+- **Modularity.** Each agent can fail, retry, or be swapped independently. We don't re-run the whole thing if one stage changes.
+- **Deterministic when needed.** `run_report=False` skips the LLM and produces the same numerical output as the classical pipeline in ~1.3 s.
 
-The trade-off is complexity: a classical pipeline is easier to debug; a multi-agent system is more flexible and operationally richer.
+The trade-off is complexity. A classical pipeline is easier to debug; a multi-agent system is more flexible at the cost of an extra orchestration layer.
 
 The five agents (Reply spec topology):
 
@@ -135,7 +135,7 @@ After running both pipelines on the same 567 routes:
 | Top-10 most-anomalous routes overlap | **9 / 10** |
 | Top-50 most-anomalous routes overlap | **44 / 50** |
 
-So the architectures converge on the same answer — the multi-agent version just gets there in a way that's operationally more useful (filtering, explanations, modular failure handling).
+So the two architectures converge on the same answer. The multi-agent version reaches it with more operational flexibility (runtime filtering, route-by-route explanations, modular failure handling); the classical pipeline reaches it faster and with simpler audit trails.
 
 The notebook `notebooks/07_comparison_classical_vs_multiagent.ipynb` contains the full quantitative comparison, including confusion matrix, score correlation, rank-delta distribution, and final recommendation.
 
@@ -227,7 +227,13 @@ python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Add the raw data files:
+### Data source and reproducibility
+
+The raw inputs (`ALLARMI.csv`, `TIPOLOGIA_VIAGGIATORE.csv`) are real **NoiPA** airport transit and security-alert data, provided by Reply for the LUISS 2026 challenge under a confidentiality agreement. They are **not redistributed** in this repository (`data/raw/` is in `.gitignore`).
+
+> ⚠️ **Cannot be reproduced without the raw CSVs.** Without the original Reply-provided files in `data/raw/`, neither pipeline can run. The `data/processed/*.csv` artefacts shipped with the repo are committed only as evidence of past runs; they are gitignored under fresh clones. Contact the team or Reply for access to the raw inputs.
+
+If you have the two CSVs, place them as:
 ```
 data/raw/ALLARMI.csv
 data/raw/TIPOLOGIA_VIAGGIATORE.csv
@@ -354,12 +360,12 @@ We deliberately deviated from the Reply spec in three places. Each deviation is 
 
 ## Limits of the current work
 
-- **Single dataset, single client.** The whole evaluation runs on the NoiPA airport dataset (567 routes, 13 months). We have not stress-tested the pipelines against datasets with materially different schemas (the LLM schema-normalisation layer in `DataAgent` is implemented but never had to fire on real data).
-- **No temporal model.** Both pipelines treat each route as a snapshot. Trends, seasonality and concept drift are out of scope. A route whose risk increases month-over-month would not be flagged as “rising” by either system.
-- **Threshold sensitivity not characterised.** The five business-rule thresholds (high_interpol_pct ≥ 0.30, etc.) are inherited from the classical post-processing layer; we have unit tests that verify each rule fires at the threshold but no sensitivity analysis (how much do the final ALTA/MEDIA counts move if we change a threshold by ±0.05?).
+- **Single dataset, single client.** The whole evaluation runs on the NoiPA airport dataset (567 routes, 13 months). We have not stress-tested the pipelines against datasets with materially different schemas. The LLM schema-normalisation layer in `DataAgent` is implemented but never had to fire on real data.
+- **No temporal model.** Both pipelines treat each route as a snapshot. Trends, seasonality and concept drift are out of scope. A route whose risk increases month-over-month would not be flagged as "rising" by either system.
+- **Threshold sensitivity not characterised.** The five business-rule thresholds (high_interpol_pct ≥ 0.30, etc.) are inherited from the classical post-processing layer. We have unit tests that verify each rule fires at the threshold but no sensitivity analysis on how much the final ALTA/MEDIA counts move under perturbation.
 - **LangGraph used in linear mode.** Conditional edges only implement stop-on-error. We do not exploit branching, loops, or supervisor patterns. The multi-agent value comes from orchestration robustness and modularity, not from emergent agent-to-agent reasoning.
 - **LLM narratives are not validated.** We instruct Claude to cite specific drivers and we tag the prompt to refuse hallucinations, but we do not programmatically check that every generated narrative respects the requested format.
-- **Comparative analysis uses 567 routes only.** The agreement metrics (97.2 %, r = 0.9847, etc.) are statistically representative but were not bootstrapped — confidence intervals on the agreement number are not reported.
+- **Comparative analysis uses 567 routes only.** The agreement metrics (97.2 %, r = 0.9847, etc.) are statistically representative but were not bootstrapped, so we do not report a confidence interval on the agreement number.
 
 ## Future work
 
