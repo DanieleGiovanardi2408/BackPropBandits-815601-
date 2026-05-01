@@ -58,6 +58,10 @@ class AgentState(TypedDict):
     df_anomalies: Optional[Any]           # pd.DataFrame — IF/LOF/Z/AE scores + risk label
     anomaly_meta: Optional[dict]          # n_alta, n_media, n_normale, thresholds used
 
+    # ── RiskProfilingAgent output ─────────────────────────────────────────────
+    df_risk: Optional[Any]                # pd.DataFrame — anomalies + br_* + final_risk
+    risk_meta: Optional[dict]             # n_critico, n_alto, rule_hits, thresholds
+
     # ── ReportAgent output ────────────────────────────────────────────────────
     report: Optional[dict]                # final report with LLM explanations
     report_path: Optional[str]            # path of the JSON file saved to disk
@@ -106,7 +110,7 @@ class BaselineAgentOutput(BaseModel):
 
 
 class OutlierAgentOutput(BaseModel):
-    """OutlierAgent output — passed to ReportAgent."""
+    """OutlierAgent output — passed to RiskProfilingAgent."""
     n_alta: int
     n_media: int
     n_normale: int
@@ -114,6 +118,21 @@ class OutlierAgentOutput(BaseModel):
     soglia_media: float
     metodo_ensemble: str = "weighted_average"
     top_rotte: list[dict] = Field(description="Top 10 anomalous routes with scores")
+
+
+class RiskProfilingAgentOutput(BaseModel):
+    """RiskProfilingAgent output — passed to ReportAgent.
+
+    Mirrors the classical post-processing layer: business rules, blended
+    confidence and final risk classification (CRITICO/ALTO/MEDIO/BASSO).
+    """
+    n_routes: int
+    n_critico: int
+    n_alto: int
+    n_medio: int
+    n_basso: int
+    rule_hits: dict = Field(description="Hits per business rule (br_high_*)")
+    top_routes: list[dict] = Field(description="Top 10 routes by confidence")
 
 
 class ReportAgentOutput(BaseModel):

@@ -1,24 +1,22 @@
 """Multi-agent pipeline orchestrator (LangGraph).
 
-Graph with conditional edges:
+Graph with conditional edges (5 specialised agents per the Reply spec):
 
-    START → DataAgent → [ok?] → FeatureAgent → [ok?] → BaselineAgent
-                ↓ err                ↓ err                   ↓ err
-               END                  END                     END
-                                                             ↓ ok
-                                                        OutlierAgent
-                                                          ↓        ↓ err
-                                                    [report?]     END
-                                                     ↓    ↓
-                                                   yes    no
-                                                    ↓     ↓
-                                              ReportAgent  END
-                                                    ↓
-                                                   END
+    START → DataAgent → FeatureAgent → BaselineAgent → OutlierAgent
+                                                            ↓
+                                                  RiskProfilingAgent
+                                                            ↓
+                                                       [report?]
+                                                       ↓       ↓
+                                                     yes      no
+                                                       ↓       ↓
+                                                ReportAgent   END
+                                                       ↓
+                                                      END
 
-If continue_on_error=True, the conditional edges do not stop the graph
-on the first error: each agent handles internally the absence of data
-from its predecessor.
+Each conditional edge stops the graph on the first error unless
+``continue_on_error=True``. Agents handle missing predecessor data
+gracefully so partial diagnostics still surface to the UI.
 """
 from __future__ import annotations
 
@@ -32,6 +30,7 @@ from multiagent_pipeline.agents.data_agent import data_agent_node
 from multiagent_pipeline.agents.feature_agent import run_feature_agent
 from multiagent_pipeline.agents.baseline_agent import run_baseline_agent
 from multiagent_pipeline.agents.outlier_agent import run_outlier_agent
+from multiagent_pipeline.agents.risk_profiling_agent import run_risk_profiling_agent
 from multiagent_pipeline.agents.report_agent import run_report_agent
 from multiagent_pipeline.config import get_dry_run, get_use_llm
 from multiagent_pipeline.state import AgentState
@@ -56,6 +55,8 @@ def _init_state(perimeter: dict) -> AgentState:
         "baseline_meta": None,
         "df_anomalies": None,
         "anomaly_meta": None,
+        "df_risk": None,
+        "risk_meta": None,
         "report": None,
         "report_path": None,
     }
@@ -122,6 +123,13 @@ def _build_graph(
             "anomaly_meta": result["anomaly_meta"],
         }
 
+    def node_risk(state: AgentState) -> dict:
+        result = run_risk_profiling_agent(state, save_output=save_outputs)
+        return {
+            "df_risk":   result["df_risk"],
+            "risk_meta": result["risk_meta"],
+        }
+
     def node_report(state: AgentState) -> dict:
         result = run_report_agent(
             state,
@@ -156,10 +164,18 @@ def _build_graph(
     def after_outlier(state: AgentState) -> str:
         if not continue_on_error and _has_error(state, "anomaly_meta"):
             return "end"
+        return "risk"
+
+    def after_risk(state: AgentState) -> str:
+        if not continue_on_error and _has_error(state, "risk_meta"):
+            return "end"
         if not run_report:
             return "end"
-        # Skip report if there are no anomalous routes to explain
-        df = state.get("df_anomalies")
+        # Skip report if there are no anomalous routes to explain.
+        # Use df_risk (richer) when available, fall back to df_anomalies.
+        df = state.get("df_risk")
+        if df is None:
+            df = state.get("df_anomalies")
         if df is not None and hasattr(df, "columns") and "risk_label" in df.columns:
             if not df["risk_label"].isin(["ALTA", "MEDIA"]).any():
                 logger.info("Orchestrator -> no ALTA/MEDIA routes, skipping ReportAgent")
@@ -176,6 +192,7 @@ def _build_graph(
     graph.add_node("feature", node_feature)
     graph.add_node("baseline", node_baseline)
     graph.add_node("outlier", node_outlier)
+    graph.add_node("risk", node_risk)
 
     graph.set_entry_point("data")
 
@@ -191,16 +208,20 @@ def _build_graph(
         "baseline", after_baseline,
         {"outlier": "outlier", "end": END},
     )
+    graph.add_conditional_edges(
+        "outlier", after_outlier,
+        {"risk": "risk", "end": END},
+    )
 
     if run_report:
         graph.add_node("report", node_report)
         graph.add_conditional_edges(
-            "outlier", after_outlier,
+            "risk", after_risk,
             {"report": "report", "end": END},
         )
         graph.add_edge("report", END)
     else:
-        graph.add_edge("outlier", END)
+        graph.add_edge("risk", END)
 
     return graph.compile()
 
@@ -214,6 +235,7 @@ _STAGE_META_KEYS = [
     ("feature",  "feature_meta"),
     ("baseline", "baseline_meta"),
     ("outlier",  "anomaly_meta"),
+    ("risk",     "risk_meta"),
     ("report",   "report"),
 ]
 
