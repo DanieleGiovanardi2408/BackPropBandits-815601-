@@ -239,19 +239,20 @@ data/raw/TIPOLOGIA_VIAGGIATORE.csv
 PYTHONPATH=. jupyter lab main.ipynb
 ```
 
-`main.ipynb` is the executable end-to-end story of the project. It is structured as nine sections matching the workflow we actually followed:
+`main.ipynb` is the executable end-to-end story of the project. It is structured as ten sections matching the workflow we actually followed:
 
-1. **EDA** — content of `classical_pipeline/notebooks/01_EDA.ipynb`
-2. **Feature Engineering** — content of `02_feature_engineering.ipynb`
-3. **Baseline Construction** — content of `03_baseline_construction.ipynb`
-4. **Anomaly Detection** — content of `04_anomaly_detection.ipynb`
-5. **Post-Processing & Risk Profiles** — content of `05_post_processing.ipynb`
-6. **Evaluation** — content of `06_evaluation.ipynb`
-7. **Multi-Agent Pipeline** — the five LangGraph agents inlined from `multiagent_pipeline/`
-8. **Comparative Analysis** — content of `notebooks/07_comparison_classical_vs_multiagent.ipynb`
-9. **Conclusions** — when to choose which architecture, limits, future work
+1. **Exploratory Data Analysis** — content of `classical_pipeline/notebooks/01_EDA.ipynb`
+2. **Data Preprocessing** — `shared/preprocessing.py` inlined: the cleaning + merge layer used by **both** pipelines (date parsing, ISO2→ISO3 country codes, gender normalisation, sparse column drop, route-level merge)
+3. **Feature Engineering** — content of `02_feature_engineering.ipynb`
+4. **Baseline Construction** — content of `03_baseline_construction.ipynb`
+5. **Anomaly Detection** — content of `04_anomaly_detection.ipynb`
+6. **Post-Processing & Risk Profiles** — content of `05_post_processing.ipynb`
+7. **Evaluation** — content of `06_evaluation.ipynb`
+8. **Multi-Agent Pipeline** — the five LangGraph agents inlined from `multiagent_pipeline/`
+9. **Comparative Analysis** — content of `notebooks/07_comparison_classical_vs_multiagent.ipynb`
+10. **Conclusions** — when to choose which architecture, limits, future work
 
-The original step-by-step notebooks remain in the repo for those who want to drill into a single phase; the multi-agent code remains in `multiagent_pipeline/` because the Streamlit dashboard and the LangGraph orchestrator import it as a library.
+The original step-by-step notebooks remain in the repo for those who want to drill into a single phase; the multi-agent code remains in `multiagent_pipeline/` because the Streamlit dashboard and the LangGraph orchestrator import it as a library; `shared/preprocessing.py` keeps the cleaning logic in one place so the classical script and the multi-agent `DataAgent` share the same source of truth.
 
 ### Classical pipeline
 
