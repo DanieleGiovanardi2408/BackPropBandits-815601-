@@ -1,15 +1,23 @@
 # Airport Risk Intelligence
-**Reply × LUISS 2026 — Project 2**
+**Reply × LUISS 2026 — Project 2 (Classical vs Multi-Agent)**
+
+**Team**
+
+- Daniele Giovanardi
+- Filippo Nannucci
+- Edoardo Riva
 
 ---
 
 ## Who we are and what this is
 
-We're a team of students competing in the **Reply × LUISS 2026** challenge. For Project 2 we were asked to build an anomaly-detection system on real airport security data and then argue which architectural approach works best.
+We're a team of three students competing in the **Reply × LUISS 2026 — Project 2** challenge. For Project 2 we were asked to build an anomaly-detection system on real airport security data and then argue which architectural approach works best.
 
-Rather than just picking one approach and running with it, we decided to **build the same system twice** — once as a classical sequential pipeline (notebooks + Python scripts) and once as a **LangGraph multi-agent system** — so we could compare them properly. Same data, same features, same detection logic, two completely different architectures.
+Rather than just picking one approach and running with it, we decided to **build the same system twice** — once as a classical sequential pipeline (six step-by-step notebooks orchestrated by a single Python script) and once as a **LangGraph multi-agent system** with five specialised agents — so we could compare them properly. Same data, same features, same detection logic, two completely different architectures.
 
 The question we're trying to answer: *when does adding agent orchestration actually buy you something over a well-written classical pipeline?*
+
+> **Where to start reading.** The fastest path through the project is `main.ipynb` at the root of this repo: it stitches together the six classical-pipeline notebooks, the multi-agent code, and the comparative analysis into a single executable narrative. A reviewer who reads only `main.ipynb` sees the entire project end-to-end.
 
 ---
 
@@ -231,7 +239,19 @@ data/raw/TIPOLOGIA_VIAGGIATORE.csv
 PYTHONPATH=. jupyter lab main.ipynb
 ```
 
-`main.ipynb` calls both pipelines in sequence, prints the comparative metrics, renders a sample multi-agent finding, and closes with the conclusion table. It is the recommended entry point for a reviewer.
+`main.ipynb` is the executable end-to-end story of the project. It is structured as nine sections matching the workflow we actually followed:
+
+1. **EDA** — content of `classical_pipeline/notebooks/01_EDA.ipynb`
+2. **Feature Engineering** — content of `02_feature_engineering.ipynb`
+3. **Baseline Construction** — content of `03_baseline_construction.ipynb`
+4. **Anomaly Detection** — content of `04_anomaly_detection.ipynb`
+5. **Post-Processing & Risk Profiles** — content of `05_post_processing.ipynb`
+6. **Evaluation** — content of `06_evaluation.ipynb`
+7. **Multi-Agent Pipeline** — the five LangGraph agents inlined from `multiagent_pipeline/`
+8. **Comparative Analysis** — content of `notebooks/07_comparison_classical_vs_multiagent.ipynb`
+9. **Conclusions** — when to choose which architecture, limits, future work
+
+The original step-by-step notebooks remain in the repo for those who want to drill into a single phase; the multi-agent code remains in `multiagent_pipeline/` because the Streamlit dashboard and the LangGraph orchestrator import it as a library.
 
 ### Classical pipeline
 
@@ -359,4 +379,4 @@ We deliberately deviated from the Reply spec in three places. Each deviation is 
 
 ---
 
-*Reply × LUISS 2026*
+*Reply × LUISS 2026 — Project 2*
