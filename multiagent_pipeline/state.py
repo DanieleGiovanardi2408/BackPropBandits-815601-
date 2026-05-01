@@ -58,6 +58,9 @@ class AgentState(TypedDict):
     df_anomalies: Optional[Any]           # pd.DataFrame — IF/LOF/Z/AE scores + risk label
     anomaly_meta: Optional[dict]          # n_alta, n_media, n_normale, thresholds used
 
+    # ── SupervisorAgent output ────────────────────────────────────────────────
+    supervisor_meta: Optional[dict]       # n_first_pass_alta, n_robust_alta, n_downgraded
+
     # ── RiskProfilingAgent output ─────────────────────────────────────────────
     df_risk: Optional[Any]                # pd.DataFrame — anomalies + br_* + final_risk
     risk_meta: Optional[dict]             # n_critico, n_alto, rule_hits, thresholds
