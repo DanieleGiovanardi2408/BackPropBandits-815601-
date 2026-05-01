@@ -139,14 +139,14 @@ def run_baseline_agent(
 
 
 if __name__ == "__main__":
-    from multiagent_pipeline.agents.feature_agent import run_feature_agent
+    from multiagent_pipeline.agents.data_agent import data_agent_node
     from multiagent_pipeline.tools.data_tools import load_last_perimeter
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
     _perimeter = load_last_perimeter() or {"anno": 2024}
     print(f"  Perimeter: {_perimeter}")
     state_in: AgentState = {"perimeter": _perimeter}
-    with_features = run_feature_agent(state_in)
+    with_features = data_agent_node(state_in)  # DataAgent now produces df_features inline
     out = run_baseline_agent(with_features)
 
     print("\n=== BaselineAgent RESULT ===")

@@ -48,16 +48,17 @@ The multi-agent version (LangGraph) replicates the **exact same detection logic*
 
 The trade-off is complexity: a classical pipeline is easier to debug; a multi-agent system is more flexible and operationally richer.
 
-The five agents:
+The five agents (Reply spec topology):
 
 | # | Agent | Responsibility |
 |---|-------|---------------|
-| 1 | `DataAgent` | Loads `ALLARMI` + `TIPOLOGIA_VIAGGIATORE`, applies the user-defined perimeter |
-| 2 | `FeatureAgent` | Aggregates 54 numerical features per route via `FeatureBuilder` (shared with the classical pipeline) |
-| 3 | `BaselineAgent` | Robust MAD z-scores per BASELINE_FEATURE → composite `baseline_score` |
-| 4 | `OutlierAgent` | 4-model weighted ensemble (real `sklearn` IF + LOF + Z + Autoencoder) → `ensemble_score` and `risk_label` (ALTA/MEDIA/NORMALE) |
-| 5 | `RiskProfilingAgent` | Five business rules → `confidence` (60% ML + 40% rules) → `final_risk` (CRITICO/ALTO/MEDIO/BASSO) |
-| (opt) | `ReportAgent` | LLM narrative for each ALTA/MEDIA route, citing top z-score drivers and risk drivers |
+| 1 | `DataAgent` | Loads `ALLARMI` + `TIPOLOGIA_VIAGGIATORE`, applies the user-defined perimeter, and engineers 54 numerical features per route via `FeatureBuilder` (the same shared module the classical pipeline calls inline). |
+| 2 | `BaselineAgent` | Robust MAD z-scores per BASELINE_FEATURE → composite `baseline_score`. |
+| 3 | `OutlierAgent` | 4-model weighted ensemble (real `sklearn` IF + LOF + Z + Autoencoder) → `ensemble_score` and `risk_label` (ALTA/MEDIA/NORMALE). |
+| 4 | `RiskProfilingAgent` | Five business rules → `confidence` (60% ML + 40% rules) → `final_risk` (CRITICO/ALTO/MEDIO/BASSO) + per-route `risk_drivers`. |
+| 5 | `ReportAgent` (LLM) | Optional Claude narrative for each ALTA/MEDIA route, citing top z-score drivers and the business rules that fired. Skipped automatically when no anomalies remain after profiling. |
+
+Feature engineering lives inside `DataAgent` rather than in its own agent: it is a deterministic transformation of the same filtered data, and giving it a separate agent box would push the visible count to six without adding orchestration value.
 
 ### What we found
 
@@ -121,13 +122,12 @@ classical-vs-multiagent/
 │       ├── 05_post_processing.ipynb
 │       └── 06_evaluation.ipynb
 │
-├── multiagent_pipeline/                # ── Pipeline 2 (LangGraph) ──────────
+├── multiagent_pipeline/                # ── Pipeline 2 (LangGraph, 5 agents) ──
 │   ├── main.py                         # Graph orchestrator
 │   ├── state.py                        # Shared AgentState schema
 │   ├── config.py                       # API key + model config
 │   ├── agents/
-│   │   ├── data_agent.py               # Loads + filters raw CSVs
-│   │   ├── feature_agent.py            # Builds 54 features per route
+│   │   ├── data_agent.py               # Loads, filters and feature-engineers
 │   │   ├── baseline_agent.py           # Robust MAD z-scores
 │   │   ├── outlier_agent.py            # 4-model weighted ensemble
 │   │   ├── risk_profiling_agent.py     # 5 business rules + final_risk

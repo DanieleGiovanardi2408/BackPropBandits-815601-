@@ -268,14 +268,13 @@ def run_report_agent(
 
 if __name__ == "__main__":
     from multiagent_pipeline.agents.data_agent import data_agent_node
-    from multiagent_pipeline.agents.feature_agent import run_feature_agent
+    
     from multiagent_pipeline.agents.baseline_agent import run_baseline_agent
     from multiagent_pipeline.agents.outlier_agent import run_outlier_agent
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
     s: AgentState = {"perimeter": {"anno": 2024}}
     s = data_agent_node(s)
-    s = run_feature_agent(s)
     s = run_baseline_agent(s)
     s = run_outlier_agent(s)
     s = run_report_agent(s)

@@ -3,10 +3,19 @@ data_agent.py
 ─────────────
 Agent 1 — DataAgent
 
-Responsibilities:
-    Loads the already-cleaned merged dataset from preprocessing, applies the
-    user-defined filters (year, airport, country, zone) and returns the
-    filtered DataFrame with its statistics in the shared state.
+Responsibilities (per the Reply spec):
+    "Queries the DB based on user-defined perimeter."
+
+    DataAgent loads the already-cleaned datasets from preprocessing, applies
+    the user-defined filters (year, airport, country, zone), aggregates the
+    filtered records into the 54 route-level features used by all downstream
+    agents, and returns everything in the shared state.
+
+    Feature engineering is performed inline (via FeatureBuilder) rather than
+    in a separate agent: it is a deterministic transformation of the same
+    filtered data, so giving it its own agent box would double the visible
+    agent count without adding orchestration value. This keeps the spec's
+    five-agent topology (Data → Baseline → Outlier → Risk → Report).
 
 Architecture:
     MOSTLY DETERMINISTIC — uses an LLM exactly once, only when needed.
@@ -16,7 +25,7 @@ Architecture:
     pipeline, no LLM call is made (zero extra latency, zero extra cost).
     If the column names differ (e.g. a new dataset with different naming
     conventions), the LLM infers a mapping from actual → canonical names
-    and renames the columns *before* any downstream agent sees the data.
+    and renames the columns *before* feature engineering happens.
     All agents after DataAgent remain fully deterministic regardless.
 
     Flow:
@@ -24,10 +33,12 @@ Architecture:
         → [schema_normalize — LLM only if canonical cols missing]
         → filter_by_perimeter
         → get_dataset_stats
+        → FeatureBuilder.build  (54 numerical features per route)
 
 Input  (from AgentState): state["perimeter"]
 Output (to AgentState):   state["df_raw"], state["df_allarmi"],
-                          state["df_viaggiatori"], state["data_meta"]
+                          state["df_viaggiatori"], state["data_meta"],
+                          state["df_features"], state["feature_meta"]
 """
 
 # ── Bootstrap for direct execution (python data_agent.py) ────────────────────
@@ -40,12 +51,14 @@ if __package__ in (None, ""):
 
 import json
 import logging
+import time
 import pandas as pd
 from pathlib import Path
 from typing import Optional
 
 from multiagent_pipeline.state import AgentState, Perimeter, PATHS
 from multiagent_pipeline.config import get_anthropic_api_key, get_anthropic_model
+from multiagent_pipeline.src.features import FeatureBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -314,6 +327,8 @@ def data_agent_node(state: AgentState, save_artifacts: bool = False) -> AgentSta
       - state["df_allarmi"]      (filtered allarmi_clean)
       - state["df_viaggiatori"]  (filtered viaggiatori_clean)
       - state["data_meta"]       (main statistics)
+      - state["df_features"]     (54 route-level features built via FeatureBuilder)
+      - state["feature_meta"]    (n_routes, n_features, quality report)
 
     Args:
         save_artifacts: if True, saves debug JSON/CSV files to data/processed.
@@ -322,6 +337,7 @@ def data_agent_node(state: AgentState, save_artifacts: bool = False) -> AgentSta
     and sets df_raw = None, so the graph can handle the failure.
     """
     logger.info("DataAgent -- Starting")
+    started_at = time.perf_counter()
 
     try:
         # 1. Read and validate the perimeter
@@ -404,27 +420,79 @@ def data_agent_node(state: AgentState, save_artifacts: bool = False) -> AgentSta
             logger.info("[save] %s + 3 csv (merged/allarmi/viaggiatori)", DATA_AGENT_OUTPUT_JSON.name)
 
         logger.info(
-            "DataAgent ✓ Completed — %d rows, %d unique routes",
+            "DataAgent — filtered: %d rows, %d unique routes",
             stats["n_righe"],
             stats["n_rotte_uniche"],
         )
 
+        # 8. Feature engineering — runs inline so the multi-agent stays at the
+        #    spec-mandated 5 agents (Data → Baseline → Outlier → Risk → Report).
+        #    FeatureBuilder is the same shared module the classical pipeline uses.
+        df_features = pd.DataFrame()
+        feature_meta = {}
+        try:
+            if not df_allarmi.empty or not df_viaggiatori.empty:
+                builder = FeatureBuilder()
+                df_features = builder.build(df_allarmi, df_viaggiatori)
+                quality = builder.quality_report(df_features)
+                feature_meta = {
+                    "n_rotte":      int(df_features.shape[0]),
+                    "n_features":   int(df_features.shape[1]),
+                    "feature_cols": df_features.select_dtypes(include="number").columns.tolist(),
+                    "quality":      quality,
+                }
+                if save_artifacts:
+                    feat_path = _PROJECT_ROOT / PATHS["features"]
+                    feat_path.parent.mkdir(parents=True, exist_ok=True)
+                    df_features.to_csv(feat_path, index=False)
+                    feature_meta["saved_to"] = str(feat_path)
+                logger.info(
+                    "DataAgent — features: %d routes × %d columns",
+                    df_features.shape[0],
+                    df_features.shape[1],
+                )
+            else:
+                logger.warning("DataAgent — empty filtered datasets, skipping feature engineering")
+                feature_meta = {
+                    "n_rotte": 0, "n_features": 0,
+                    "feature_cols": [], "quality": {},
+                    "warning": "Empty filtered datasets — no features built.",
+                }
+        except Exception as fe:
+            logger.error("DataAgent — feature engineering failed: %s", fe)
+            feature_meta = {"error": f"feature_engineering: {fe}"}
+
+        elapsed = round(time.perf_counter() - started_at, 3)
+        stats["elapsed_s"] = elapsed
+        feature_meta["elapsed_s"] = elapsed
+
+        logger.info(
+            "DataAgent ✓ Completed — %d rows, %d routes, %d features (%.2fs)",
+            stats["n_righe"], stats["n_rotte_uniche"],
+            feature_meta.get("n_features", 0), elapsed,
+        )
+
         return {
             **state,
-            "df_raw"   : df_raw,
-            "df_allarmi": df_allarmi,
+            "df_raw"        : df_raw,
+            "df_allarmi"    : df_allarmi,
             "df_viaggiatori": df_viaggiatori,
-            "data_meta": stats,
+            "data_meta"     : stats,
+            "df_features"   : df_features,
+            "feature_meta"  : feature_meta,
         }
 
     except Exception as e:
         logger.error("DataAgent ✗ Error: %s", e)
+        elapsed = round(time.perf_counter() - started_at, 3)
         return {
             **state,
-            "df_raw"   : None,
-            "df_allarmi": None,
+            "df_raw"        : None,
+            "df_allarmi"    : None,
             "df_viaggiatori": None,
-            "data_meta": {"error": str(e)},
+            "data_meta"     : {"error": str(e), "elapsed_s": elapsed},
+            "df_features"   : None,
+            "feature_meta"  : {"error": str(e), "elapsed_s": elapsed},
         }
 
 
@@ -568,12 +636,12 @@ if __name__ == "__main__":
         print(f"  df_viag shape:     {stato_finale['df_viaggiatori'].shape}")
         print("=" * 55)
 
-        # ── Interactive chain ──────────────────────────────────
+        # ── Interactive chain (DataAgent already produced df_features) ──
         CHAIN = [
-            ("FeatureAgent",  "run_feature_agent",  "multiagent_pipeline.agents.feature_agent"),
-            ("BaselineAgent", "run_baseline_agent", "multiagent_pipeline.agents.baseline_agent"),
-            ("OutlierAgent",  "run_outlier_agent",  "multiagent_pipeline.agents.outlier_agent"),
-            ("ReportAgent",   "run_report_agent",   "multiagent_pipeline.agents.report_agent"),
+            ("BaselineAgent",      "run_baseline_agent",       "multiagent_pipeline.agents.baseline_agent"),
+            ("OutlierAgent",       "run_outlier_agent",        "multiagent_pipeline.agents.outlier_agent"),
+            ("RiskProfilingAgent", "run_risk_profiling_agent", "multiagent_pipeline.agents.risk_profiling_agent"),
+            ("ReportAgent",        "run_report_agent",         "multiagent_pipeline.agents.report_agent"),
         ]
 
         state = stato_finale
@@ -588,13 +656,7 @@ if __name__ == "__main__":
             print(f"\n── {agent_name} ──────────────────────────────────────")
             state = fn(state)
             # Print a brief result for each agent
-            if agent_name == "FeatureAgent":
-                fm = state.get("feature_meta") or {}
-                if "error" in fm:
-                    print(f"  ERROR: {fm['error']}")
-                    break
-                print(f"  df_features: {state['df_features'].shape} | quality: {fm.get('quality',{}).get('null_totali','?')} null")
-            elif agent_name == "BaselineAgent":
+            if agent_name == "BaselineAgent":
                 bm = state.get("baseline_meta") or {}
                 if "error" in bm:
                     print(f"  ERROR: {bm['error']}")
@@ -606,6 +668,12 @@ if __name__ == "__main__":
                     print(f"  ERROR: {am['error']}")
                     break
                 print(f"  ALTA={am.get('n_alta')} | MEDIA={am.get('n_media')} | NORMALE={am.get('n_normale')}")
+            elif agent_name == "RiskProfilingAgent":
+                rm = state.get("risk_meta") or {}
+                if "error" in rm:
+                    print(f"  ERROR: {rm['error']}")
+                    break
+                print(f"  CRITICO={rm.get('n_critico')} | ALTO={rm.get('n_alto')} | MEDIO={rm.get('n_medio')} | BASSO={rm.get('n_basso')}")
             elif agent_name == "ReportAgent":
                 rp = state.get("report_path")
                 rs = (state.get("report") or {}).get("summary", "N/A")

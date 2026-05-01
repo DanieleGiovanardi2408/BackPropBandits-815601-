@@ -2,19 +2,20 @@
 
 Graph with conditional edges (5 specialised agents per the Reply spec):
 
-    START → DataAgent → FeatureAgent → BaselineAgent → OutlierAgent
-                                                            ↓
-                                                  RiskProfilingAgent
-                                                            ↓
-                                                       [report?]
-                                                       ↓       ↓
-                                                     yes      no
-                                                       ↓       ↓
-                                                ReportAgent   END
-                                                       ↓
-                                                      END
+    START → DataAgent → BaselineAgent → OutlierAgent → RiskProfilingAgent
+                                                                ↓
+                                                           [report?]
+                                                           ↓       ↓
+                                                         yes      no
+                                                           ↓       ↓
+                                                    ReportAgent   END
+                                                           ↓
+                                                          END
 
-Each conditional edge stops the graph on the first error unless
+DataAgent performs both perimeter filtering AND feature engineering
+(via FeatureBuilder, the same module used by the classical pipeline) so
+the visible agent count matches the spec's 5-agent topology. Each
+conditional edge stops the graph on the first error unless
 ``continue_on_error=True``. Agents handle missing predecessor data
 gracefully so partial diagnostics still surface to the UI.
 """
@@ -27,7 +28,6 @@ from typing import Any
 from langgraph.graph import StateGraph, END
 
 from multiagent_pipeline.agents.data_agent import data_agent_node
-from multiagent_pipeline.agents.feature_agent import run_feature_agent
 from multiagent_pipeline.agents.baseline_agent import run_baseline_agent
 from multiagent_pipeline.agents.outlier_agent import run_outlier_agent
 from multiagent_pipeline.agents.risk_profiling_agent import run_risk_profiling_agent
@@ -96,17 +96,12 @@ def _build_graph(
     def node_data(state: AgentState) -> dict:
         result = data_agent_node(state, save_artifacts=save_outputs)
         return {
-            "df_raw": result["df_raw"],
-            "df_allarmi": result["df_allarmi"],
+            "df_raw":         result["df_raw"],
+            "df_allarmi":     result["df_allarmi"],
             "df_viaggiatori": result["df_viaggiatori"],
-            "data_meta": result["data_meta"],
-        }
-
-    def node_feature(state: AgentState) -> dict:
-        result = run_feature_agent(state, save_output=save_outputs)
-        return {
-            "df_features": result["df_features"],
-            "feature_meta": result["feature_meta"],
+            "data_meta":      result["data_meta"],
+            "df_features":    result["df_features"],
+            "feature_meta":   result["feature_meta"],
         }
 
     def node_baseline(state: AgentState) -> dict:
@@ -147,12 +142,11 @@ def _build_graph(
     # If False, stops at the first error.
 
     def after_data(state: AgentState) -> str:
-        if not continue_on_error and _has_error(state, "data_meta"):
-            return "end"
-        return "feature"
-
-    def after_feature(state: AgentState) -> str:
-        if not continue_on_error and _has_error(state, "feature_meta"):
+        # DataAgent now also performs feature engineering, so we check both
+        # data_meta and feature_meta for errors before moving on.
+        if not continue_on_error and (
+            _has_error(state, "data_meta") or _has_error(state, "feature_meta")
+        ):
             return "end"
         return "baseline"
 
@@ -189,7 +183,6 @@ def _build_graph(
     graph = StateGraph(AgentState)
 
     graph.add_node("data", node_data)
-    graph.add_node("feature", node_feature)
     graph.add_node("baseline", node_baseline)
     graph.add_node("outlier", node_outlier)
     graph.add_node("risk", node_risk)
@@ -198,10 +191,6 @@ def _build_graph(
 
     graph.add_conditional_edges(
         "data", after_data,
-        {"feature": "feature", "end": END},
-    )
-    graph.add_conditional_edges(
-        "feature", after_feature,
         {"baseline": "baseline", "end": END},
     )
     graph.add_conditional_edges(
@@ -232,7 +221,6 @@ def _build_graph(
 
 _STAGE_META_KEYS = [
     ("data",     "data_meta"),
-    ("feature",  "feature_meta"),
     ("baseline", "baseline_meta"),
     ("outlier",  "anomaly_meta"),
     ("risk",     "risk_meta"),

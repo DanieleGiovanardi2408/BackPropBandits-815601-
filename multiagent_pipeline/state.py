@@ -31,10 +31,12 @@ class AgentState(TypedDict):
     """
     State that flows between nodes of the LangGraph graph.
 
-    Flow:
-        DataAgent → FeatureAgent → BaselineAgent → OutlierAgent → ReportAgent
+    Flow (5 agents, matching the Reply spec):
+        DataAgent → BaselineAgent → OutlierAgent → RiskProfilingAgent → ReportAgent
 
     Each agent reads fields from its predecessors and writes to its own field.
+    DataAgent both filters and feature-engineers (via FeatureBuilder) so the
+    visible agent count stays at five.
     """
 
     # ── User input ─────────────────────────────────────────────────────────────
@@ -45,8 +47,6 @@ class AgentState(TypedDict):
     df_allarmi: Optional[Any]             # pd.DataFrame — cleaned alarms
     df_viaggiatori: Optional[Any]         # pd.DataFrame — cleaned traveller records
     data_meta: Optional[dict]             # dataset stats: n_rows, n_routes, columns
-
-    # ── FeatureAgent output ───────────────────────────────────────────────────
     df_features: Optional[Any]            # pd.DataFrame — 54 features aggregated per route
     feature_meta: Optional[dict]          # n_routes, n_features, list of feature columns
 
@@ -85,20 +85,19 @@ class Perimeter(BaseModel):
 
 
 class DataAgentOutput(BaseModel):
-    """DataAgent output — passed to FeatureAgent."""
+    """DataAgent output — passed to BaselineAgent.
+
+    DataAgent performs both perimeter filtering AND feature engineering
+    (via FeatureBuilder) so its output already contains the 54 route-level
+    features used by every downstream agent.
+    """
     n_righe: int
     n_rotte_uniche: int
     colonne: list[str]
     anni_presenti: list[int]
     paesi_partenza_top5: list[str]
-
-
-class FeatureAgentOutput(BaseModel):
-    """FeatureAgent output — passed to BaselineAgent."""
-    n_rotte: int
-    n_features: int
-    feature_cols: list[str]
-    rotte_sample: list[str] = Field(description="First 5 routes in the dataset")
+    n_features: int = Field(default=0, description="Number of engineered features per route")
+    feature_cols: list[str] = Field(default_factory=list, description="List of feature column names")
 
 
 class BaselineAgentOutput(BaseModel):

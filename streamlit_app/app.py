@@ -505,7 +505,6 @@ def _run_pipeline_with_live_ui(
     Returns (final_state, summary) with the same structure as run_pipeline().
     """
     from multiagent_pipeline.agents.data_agent import data_agent_node
-    from multiagent_pipeline.agents.feature_agent import run_feature_agent
     from multiagent_pipeline.agents.baseline_agent import run_baseline_agent
     from multiagent_pipeline.agents.outlier_agent import run_outlier_agent
     from multiagent_pipeline.agents.risk_profiling_agent import run_risk_profiling_agent
@@ -524,10 +523,10 @@ def _run_pipeline_with_live_ui(
     }
 
     # ── Agent function closures ───────────────────────────────────────────────
+    # DataAgent now also performs feature engineering inline → 5 agents total,
+    # matching the spec topology (Data → Baseline → Outlier → Risk → Report).
     def _run_data(s):
         return data_agent_node(s, save_artifacts=save_outputs)
-    def _run_feature(s):
-        return run_feature_agent(s, save_output=save_outputs)
     def _run_baseline(s):
         return run_baseline_agent(s, save_output=save_outputs)
     def _run_outlier(s):
@@ -539,13 +538,12 @@ def _run_pipeline_with_live_ui(
 
     agent_stages = [
         ("data",     "DataAgent",          0, _run_data,     "data_meta"),
-        ("feature",  "FeatureAgent",       1, _run_feature,  "feature_meta"),
-        ("baseline", "BaselineAgent",      2, _run_baseline, "baseline_meta"),
-        ("outlier",  "OutlierAgent",       3, _run_outlier,  "anomaly_meta"),
-        ("risk",     "RiskProfilingAgent", 4, _run_risk,     "risk_meta"),
+        ("baseline", "BaselineAgent",      1, _run_baseline, "baseline_meta"),
+        ("outlier",  "OutlierAgent",       2, _run_outlier,  "anomaly_meta"),
+        ("risk",     "RiskProfilingAgent", 3, _run_risk,     "risk_meta"),
     ]
     if run_report:
-        agent_stages.append(("report", "ReportAgent", 5, _run_report, "report"))
+        agent_stages.append(("report", "ReportAgent", 4, _run_report, "report"))
 
     # ── UI containers ────────────────────────────────────────────────────────
     stage_errors: dict[str, str]  = {}

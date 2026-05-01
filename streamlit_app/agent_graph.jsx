@@ -14,24 +14,10 @@ const AGENTS = [
     gradient: ["#0ea5e9", "#0284c7"],
     tagLabel: "DETERMINISTIC",
     tagColor: "#0ea5e9",
-    description: "Loads raw CSVs, applies perimeter filters (year, country, airport, zone), and serves clean DataFrames to downstream agents.",
+    description: "Loads raw CSVs, applies perimeter filters (year, country, airport, zone), and engineers 54 route-level features via FeatureBuilder — the same module the classical pipeline uses, so feature parity between architectures is guaranteed by construction.",
     reads: ["perimeter"],
-    writes: ["df_raw", "df_allarmi", "df_viaggiatori", "data_meta"],
-    stats: { input: "2 CSV files", output: "3 DataFrames", rows: "~8,400 records" },
-  },
-  {
-    id: "feature",
-    label: "FeatureAgent",
-    file: "feature_agent.py",
-    color: "#22c55e",
-    colorDark: "#15803d",
-    gradient: ["#22c55e", "#16a34a"],
-    tagLabel: "DETERMINISTIC",
-    tagColor: "#22c55e",
-    description: "Aggregates per-route features: occurrence pivots, alarm-reason percentages, traveler rates, outcome risk scores. Produces 54 numerical features per route.",
-    reads: ["df_allarmi", "df_viaggiatori"],
-    writes: ["df_features", "feature_meta"],
-    stats: { input: "3 DataFrames", output: "567 routes x 54 features", classes: "6 feature classes" },
+    writes: ["df_raw", "df_allarmi", "df_viaggiatori", "data_meta", "df_features", "feature_meta"],
+    stats: { input: "2 CSV files", output: "567 routes x 54 features", rows: "~8,400 records" },
   },
   {
     id: "baseline",
@@ -107,36 +93,6 @@ function IconData({ size = 48 }) {
       {/* filter funnel */}
       <path d="M30 34l6-4v-4l-4 3" stroke="#38bdf8" strokeWidth="1.5" opacity="0.7" />
       <circle cx="35" cy="26" r="2" fill="#38bdf8" opacity="0.6" />
-    </svg>
-  );
-}
-
-function IconFeature({ size = 48 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
-      {/* grid of feature cells */}
-      {[0, 1, 2, 3].map((r) =>
-        [0, 1, 2, 3].map((c) => (
-          <rect
-            key={`${r}-${c}`}
-            x={6 + c * 10}
-            y={6 + r * 10}
-            width={8}
-            height={8}
-            rx={2}
-            fill="#22c55e"
-            opacity={0.1 + Math.random() * 0.35}
-          />
-        ))
-      )}
-      {/* highlight diagonal = important features */}
-      <rect x={6} y={6} width={8} height={8} rx={2} fill="#22c55e" opacity="0.8" />
-      <rect x={16} y={16} width={8} height={8} rx={2} fill="#22c55e" opacity="0.8" />
-      <rect x={26} y={26} width={8} height={8} rx={2} fill="#22c55e" opacity="0.8" />
-      <rect x={36} y={36} width={8} height={8} rx={2} fill="#22c55e" opacity="0.8" />
-      {/* gear overlay for "engineering" */}
-      <circle cx="38" cy="10" r="5" fill="none" stroke="#4ade80" strokeWidth="1.5" opacity="0.6" />
-      <circle cx="38" cy="10" r="2" fill="#4ade80" opacity="0.5" />
     </svg>
   );
 }
@@ -227,7 +183,6 @@ function IconRisk({ size = 48 }) {
 
 const ICON_MAP = {
   data: IconData,
-  feature: IconFeature,
   baseline: IconBaseline,
   outlier: IconOutlier,
   risk: IconRisk,
@@ -544,16 +499,16 @@ function StateSidebar({ activeStep }) {
     { key: "df_allarmi", agent: 0, type: "DataFrame" },
     { key: "df_viaggiatori", agent: 0, type: "DataFrame" },
     { key: "data_meta", agent: 0, type: "dict" },
-    { key: "df_features", agent: 1, type: "DataFrame" },
-    { key: "feature_meta", agent: 1, type: "dict" },
-    { key: "df_baseline", agent: 2, type: "DataFrame" },
-    { key: "baseline_meta", agent: 2, type: "dict" },
-    { key: "df_anomalies", agent: 3, type: "DataFrame" },
-    { key: "anomaly_meta", agent: 3, type: "dict" },
-    { key: "df_risk", agent: 4, type: "DataFrame" },
-    { key: "risk_meta", agent: 4, type: "dict" },
-    { key: "report", agent: 5, type: "dict" },
-    { key: "report_path", agent: 5, type: "str" },
+    { key: "df_features", agent: 0, type: "DataFrame" },
+    { key: "feature_meta", agent: 0, type: "dict" },
+    { key: "df_baseline", agent: 1, type: "DataFrame" },
+    { key: "baseline_meta", agent: 1, type: "dict" },
+    { key: "df_anomalies", agent: 2, type: "DataFrame" },
+    { key: "anomaly_meta", agent: 2, type: "dict" },
+    { key: "df_risk", agent: 3, type: "DataFrame" },
+    { key: "risk_meta", agent: 3, type: "dict" },
+    { key: "report", agent: 4, type: "dict" },
+    { key: "report_path", agent: 4, type: "str" },
   ];
 
   return (

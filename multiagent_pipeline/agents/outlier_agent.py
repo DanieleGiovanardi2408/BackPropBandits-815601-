@@ -271,7 +271,7 @@ def run_outlier_agent(
 
 if __name__ == "__main__":
     from multiagent_pipeline.agents.data_agent import data_agent_node
-    from multiagent_pipeline.agents.feature_agent import run_feature_agent
+    # DataAgent now produces df_features inline
     from multiagent_pipeline.agents.baseline_agent import run_baseline_agent
     from multiagent_pipeline.tools.data_tools import load_last_perimeter
 
@@ -280,7 +280,6 @@ if __name__ == "__main__":
     print(f"  Perimeter: {_perimeter}")
     s: AgentState = {"perimeter": _perimeter}
     s = data_agent_node(s)
-    s = run_feature_agent(s)
     s = run_baseline_agent(s)
     s = run_outlier_agent(s)
     print("\n=== OutlierAgent RESULT ===")
