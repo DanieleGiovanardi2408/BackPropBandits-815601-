@@ -393,11 +393,22 @@ def step_post_processing(
         if row["br_high_alarm_rate"]:
             drivers.append("High average alarm rate")
 
+        # ZONA may arrive as np.int64 (legacy) or as object/string after
+        # the recent _fix_paese_zona refactor → coerce to a JSON-friendly form.
+        _zona_raw = row.get("ZONA")
+        if pd.isna(_zona_raw):
+            _zona = None
+        else:
+            try:
+                _zona = int(_zona_raw)
+            except (TypeError, ValueError):
+                _zona = str(_zona_raw)
+
         profiles.append({
-            "rotta": row["ROTTA"],
-            "paese": row["PAESE_PART"],
-            "zona": row.get("ZONA"),
-            "risk_level": row["risk_level"],
+            "rotta": str(row["ROTTA"]),
+            "paese": str(row["PAESE_PART"]) if pd.notna(row["PAESE_PART"]) else None,
+            "zona": _zona,
+            "risk_level": str(row["risk_level"]),
             "anomaly_score": float(row["anomaly_score"]),
             "confidence": float(row["confidence"]),
             "br_score": float(row["br_score"]),

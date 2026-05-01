@@ -445,14 +445,19 @@ class FeatureBuilder:
 
         features["PAESE_PART"] = (
             features["PAESE_PART"]
+            .astype(object)
             .replace(["ND", "//", ""], None)
-            .fillna(features["PAESE_PART_viag"])
+            .fillna(features["PAESE_PART_viag"].astype(object))
             .fillna("ND")
         )
+        # ZONA may arrive as a nullable Int dtype (Int64) which cannot accept
+        # the "ND" string sentinel. Coerce to object first so the categorical
+        # placeholder is allowed when no fallback value is available.
         features["ZONA"] = (
             features["ZONA"]
+            .astype(object)
             .replace(["ND", "//", ""], None)
-            .fillna(features["ZONA_viag"])
+            .fillna(features["ZONA_viag"].astype(object))
             .fillna("ND")
         )
         return features.drop(columns=["PAESE_PART_viag", "ZONA_viag"])
