@@ -10,7 +10,7 @@ Team: Daniele Giovanardi, Filippo Nannucci, Edoardo Riva.
 Reply asked us to build an anomaly-detection system on NoiPA airport-security data and to argue which architecture is more convenient. We built the same detection logic twice:
 
 1. a **classical pipeline**, six step-by-step notebooks driven by `classical_pipeline/main.py`,
-2. a **multi-agent LangGraph system** with five specialised agents (Data, Baseline, Outlier, RiskProfiling, Report).
+2. a **multi-agent LangGraph system** with five specialised agents (Data, Baseline, Outlier, RiskProfiling, Report) plus an optional `Supervisor` verifier wired into the graph as a conditional branch.
 
 Both pipelines share the same preprocessing module, the same `FeatureBuilder`, the same MAD-based baseline, the same business rules and the same ensemble weights. The only real difference is the orchestration layer: a linear script vs. a LangGraph DAG with four data-driven conditional edges (one of them a feedback cycle bounded by an iteration cap).
 
@@ -33,7 +33,7 @@ We flag routes with unusual combinations of:
 - low closure rates,
 - unusual traveller profiles.
 
-The output is a risk label per route (ALTA / MEDIA / NORMALE, defined as the top 3% / top 10% / rest of the ensemble distribution) plus a final business-rule classification CRITICO / ALTO / MEDIO / BASSO.
+The output is a risk label per route (ALTA = above the p97 cut on the ensemble score, i.e. top 3 %; MEDIA = between p90 and p97, the next 7 %; NORMALE = the remaining 90 %) plus a final business-rule classification CRITICO / ALTO / MEDIO / BASSO that blends the ML score (60 %) with the business-rule score (40 %).
 
 ---
 
@@ -68,8 +68,9 @@ The five agents (Reply spec topology):
 | 3 | `OutlierAgent` | 4-model weighted ensemble (real `sklearn` IF + LOF + Z + Autoencoder, where Z = BaselineAgent's `baseline_score`) → `ensemble_score` and `risk_label` (ALTA/MEDIA/NORMALE). |
 | 4 | `RiskProfilingAgent` | Five business rules → `confidence` (60% ML + 40% rules) → `final_risk` (CRITICO/ALTO/MEDIO/BASSO) + per-route `risk_drivers`. |
 | 5 | `ReportAgent` (LLM) | Optional Claude narrative for each ALTA/MEDIA route, citing top z-score drivers and the business rules that fired. Skipped automatically when no anomalies remain after profiling. |
+| ★ | `SupervisorAgent` *(verifier, opt-in)* | Re-fits IsolationForest at contamination = 3 % on the ALTA subset and tags `alta_robusta = True` only for routes that survive the stricter rule. Activated by the `after_outlier` conditional edge when the first pass produces ≥ 5 ALTA labels; otherwise the graph short-circuits to RiskProfiling. |
 
-Feature engineering lives inside `DataAgent` rather than in its own agent: it is a deterministic transformation of the same filtered data, and giving it a separate agent box would push the visible count to six without adding orchestration value.
+Feature engineering lives inside `DataAgent` rather than in its own agent: it is a deterministic transformation of the same filtered data, and giving it a separate agent box would push the visible count to six without adding orchestration value. The Supervisor is presented as a verifier rather than a sixth mandatory agent — Reply's spec asks for five.
 
 ### Architecture map
 
@@ -77,14 +78,21 @@ Feature engineering lives inside `DataAgent` rather than in its own agent: it is
 flowchart LR
     U([User perimeter<br/>year · country · airport · zone]) --> D
     D[DataAgent<br/>load · filter · 54 features] --> B
-    B[BaselineAgent<br/>MAD z-scores → baseline_score] --> O
-    O[OutlierAgent<br/>IF · LOF · Z · AE → ensemble_score<br/>risk_label] --> R
-    R[RiskProfilingAgent<br/>5 business rules → br_score<br/>final_risk + risk_drivers] -- ALTA/MEDIA --> RP[ReportAgent<br/>LLM narrative]
-    R -- no anomalies --> END([end])
+    B[BaselineAgent<br/>MAD z-scores → baseline_score]
+    B -- "n_features ≥ 5<br/>std ≥ 0.01" --> O[OutlierAgent<br/>IF · LOF · Z · AE → ensemble_score<br/>risk_label]
+    B -- "baseline degenerate" --> END([end])
+    O -- "first-pass ALTA ≥ 5" --> S[SupervisorAgent<br/>strict refit · alta_robusta]
+    O -- "first-pass ALTA &lt; 5" --> R
+    S -- "downgrade ≤ 50 %" --> R[RiskProfilingAgent<br/>5 business rules → br_score<br/>final_risk + risk_drivers]
+    S -- "downgrade > 50 % · iter &lt; 2" --> O
+    R -- "ALTA/MEDIA" --> RP[ReportAgent<br/>LLM narrative]
+    R -- "no anomalies" --> END
     RP --> END
     classDef det fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef ver fill:#fef3c7,stroke:#d97706,color:#78350f
     classDef llm fill:#f3e8ff,stroke:#9333ea,color:#581c87
     class D,B,O,R det
+    class S ver
     class RP llm
 ```
 
@@ -193,6 +201,7 @@ classical-vs-multiagent/
 │   │   ├── data_agent.py               # Loads, filters and feature-engineers
 │   │   ├── baseline_agent.py           # Robust MAD z-scores
 │   │   ├── outlier_agent.py            # 4-model weighted ensemble
+│   │   ├── supervisor_agent.py         # Strict refit on the ALTA subset (verifier)
 │   │   ├── risk_profiling_agent.py     # 5 business rules + final_risk
 │   │   └── report_agent.py             # LLM narrative explanations
 │   ├── src/
@@ -201,7 +210,7 @@ classical-vs-multiagent/
 │   │   └── data_tools.py               # Perimeter filtering helpers
 │   └── tests/
 │       ├── e2e_validation.py           # 5-perimeter regression suite
-│       └── test_risk_profiling_agent.py  # 13 unit tests on business rules
+│       └── test_risk_profiling_agent.py  # 8 unit tests on business rules
 │
 ├── shared/
 │   └── preprocessing.py                # Data cleaning used by both pipelines
@@ -248,7 +257,7 @@ data/raw/TIPOLOGIA_VIAGGIATORE.csv
 PYTHONPATH=. jupyter lab main.ipynb
 ```
 
-`main.ipynb` is the executable end-to-end story of the project. It is structured as ten sections matching the workflow we actually followed:
+`main.ipynb` is the executable end-to-end story of the project. It is structured as thirteen sections matching the workflow we actually followed:
 
 1. **Exploratory Data Analysis** — content of `classical_pipeline/notebooks/01_EDA.ipynb`
 2. **Data Preprocessing** — `shared/preprocessing.py` inlined: the cleaning + merge layer used by **both** pipelines (date parsing, ISO2→ISO3 country codes, gender normalisation, sparse column drop, route-level merge)
@@ -257,9 +266,12 @@ PYTHONPATH=. jupyter lab main.ipynb
 5. **Anomaly Detection** — content of `04_anomaly_detection.ipynb`
 6. **Post-Processing & Risk Profiles** — content of `05_post_processing.ipynb`
 7. **Evaluation** — content of `06_evaluation.ipynb`
-8. **Multi-Agent Pipeline** — the five LangGraph agents inlined from `multiagent_pipeline/`
+8. **Multi-Agent Pipeline** — the five LangGraph agents (plus the Supervisor verifier) inlined from `multiagent_pipeline/`
 9. **Comparative Analysis** — content of `notebooks/07_comparison_classical_vs_multiagent.ipynb`
-10. **Conclusions** — when to choose which architecture, limits, future work
+10. **Bootstrap confidence intervals** — 1 000 resamples at 80 % subsample to size the agreement metric and the per-component correlations
+11. **Business-rule threshold sensitivity** — perturbation of the five rule thresholds by ±20 % and impact on `final_risk`
+12. **Temporal coverage and per-route trend slopes** — linear-trend slope per route as a 13-month-panel-friendly substitute for STL
+13. **Conclusions** — when to choose which architecture, limits, future work
 
 The original step-by-step notebooks remain in the repo for those who want to drill into a single phase; the multi-agent code remains in `multiagent_pipeline/` because the Streamlit dashboard and the LangGraph orchestrator import it as a library; `shared/preprocessing.py` keeps the cleaning logic in one place so the classical script and the multi-agent `DataAgent` share the same source of truth.
 
@@ -308,7 +320,7 @@ PYTHONPATH=. jupyter lab notebooks/07_comparison_classical_vs_multiagent.ipynb
 Two layers of tests sit alongside the pipelines:
 
 ```bash
-# 13 unit tests on the RiskProfilingAgent business rules — sub-second
+# 8 unit tests on the RiskProfilingAgent business rules — sub-second
 PYTHONPATH=. python -m pytest multiagent_pipeline/tests/test_risk_profiling_agent.py -v
 
 # 5-perimeter end-to-end regression (no LLM, ~3 s)
