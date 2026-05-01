@@ -42,10 +42,10 @@ const AGENTS = [
     gradient: ["#f59e0b", "#d97706"],
     tagLabel: "DETERMINISTIC",
     tagColor: "#f59e0b",
-    description: "Computes cross-sectional baselines using robust z-scores (median + MAD). Flags routes deviating from the population norm on 11 security-relevant features.",
+    description: "Computes cross-sectional baselines using robust z-scores (median + MAD). Flags routes deviating from the population norm on 13 security-relevant features.",
     reads: ["df_features"],
     writes: ["df_baseline", "baseline_meta"],
-    stats: { input: "54 features", output: "11 z-scores + flags", method: "Tukey IQR + Z > 2.5" },
+    stats: { input: "54 features", output: "13 z-scores + flags", method: "robust MAD z-score" },
   },
   {
     id: "outlier",
@@ -62,6 +62,20 @@ const AGENTS = [
     stats: { models: "4 ensemble", thresholdAlta: "p97 = 0.358", thresholdMedia: "p90 = 0.290" },
   },
   {
+    id: "risk",
+    label: "RiskProfilingAgent",
+    file: "risk_profiling_agent.py",
+    color: "#ec4899",
+    colorDark: "#be185d",
+    gradient: ["#ec4899", "#db2777"],
+    tagLabel: "DETERMINISTIC",
+    tagColor: "#ec4899",
+    description: "Applies the five business rules of the classical post-processing layer (high INTERPOL rate, high rejection, low closure, multi-source, high alarm rate), produces a confidence score (60% ML + 40% rules) and the final classification CRITICO / ALTO / MEDIO / BASSO.",
+    reads: ["df_anomalies"],
+    writes: ["df_risk", "risk_meta"],
+    stats: { rules: "5 business rules", confidence: "0.6·ML + 0.4·rules", levels: "CRITICO/ALTO/MEDIO/BASSO" },
+  },
+  {
     id: "report",
     label: "ReportAgent",
     file: "report_agent.py",
@@ -70,8 +84,8 @@ const AGENTS = [
     gradient: ["#a855f7", "#9333ea"],
     tagLabel: "LLM-POWERED",
     tagColor: "#a855f7",
-    description: "Uses Claude to generate narrative explanations for each anomalous route. Supports dry-run mode for cost-free testing. Optional — only runs when explicitly enabled.",
-    reads: ["df_anomalies", "anomaly_meta", "perimeter"],
+    description: "Uses Claude to generate narrative explanations for each anomalous route, citing top z-score drivers and risk drivers from the RiskProfilingAgent. Supports dry-run mode for cost-free testing. Optional — only runs when explicitly enabled.",
+    reads: ["df_risk", "risk_meta", "perimeter"],
     writes: ["report (JSON)", "report_path"],
     stats: { model: "Claude Sonnet", modes: "LLM / dry-run", output: "JSON report" },
   },
@@ -192,11 +206,31 @@ function IconReport({ size = 48 }) {
   );
 }
 
+function IconRisk({ size = 48 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
+      {/* shield */}
+      <path d="M24 4 L40 10 V24 C40 32 32 40 24 44 C16 40 8 32 8 24 V10 Z"
+            stroke="#ec4899" strokeWidth="2" fill="#ec4899" fillOpacity="0.1" strokeLinejoin="round" />
+      {/* checklist rules inside */}
+      <line x1="14" y1="16" x2="34" y2="16" stroke="#ec4899" strokeWidth="1.5" opacity="0.7" />
+      <line x1="14" y1="22" x2="32" y2="22" stroke="#ec4899" strokeWidth="1.5" opacity="0.5" />
+      <line x1="14" y1="28" x2="34" y2="28" stroke="#ec4899" strokeWidth="1.5" opacity="0.5" />
+      <line x1="14" y1="34" x2="30" y2="34" stroke="#ec4899" strokeWidth="1.5" opacity="0.4" />
+      {/* check marks */}
+      <path d="M11 16 L12.5 17.5 L15 14.5" stroke="#f9a8d4" strokeWidth="1.5" fill="none" />
+      <path d="M11 22 L12.5 23.5 L15 20.5" stroke="#f9a8d4" strokeWidth="1.5" fill="none" />
+      <path d="M11 28 L12.5 29.5 L15 26.5" stroke="#f9a8d4" strokeWidth="1.5" fill="none" />
+    </svg>
+  );
+}
+
 const ICON_MAP = {
   data: IconData,
   feature: IconFeature,
   baseline: IconBaseline,
   outlier: IconOutlier,
+  risk: IconRisk,
   report: IconReport,
 };
 
@@ -516,8 +550,10 @@ function StateSidebar({ activeStep }) {
     { key: "baseline_meta", agent: 2, type: "dict" },
     { key: "df_anomalies", agent: 3, type: "DataFrame" },
     { key: "anomaly_meta", agent: 3, type: "dict" },
-    { key: "report", agent: 4, type: "dict" },
-    { key: "report_path", agent: 4, type: "str" },
+    { key: "df_risk", agent: 4, type: "DataFrame" },
+    { key: "risk_meta", agent: 4, type: "dict" },
+    { key: "report", agent: 5, type: "dict" },
+    { key: "report_path", agent: 5, type: "str" },
   ];
 
   return (

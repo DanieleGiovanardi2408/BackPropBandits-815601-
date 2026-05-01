@@ -508,6 +508,7 @@ def _run_pipeline_with_live_ui(
     from multiagent_pipeline.agents.feature_agent import run_feature_agent
     from multiagent_pipeline.agents.baseline_agent import run_baseline_agent
     from multiagent_pipeline.agents.outlier_agent import run_outlier_agent
+    from multiagent_pipeline.agents.risk_profiling_agent import run_risk_profiling_agent
     from multiagent_pipeline.agents.report_agent import run_report_agent
 
     # ── Initial state ────────────────────────────────────────────────────────
@@ -518,6 +519,7 @@ def _run_pipeline_with_live_ui(
         "df_features":    None, "feature_meta":  None,
         "df_baseline":    None, "baseline_meta": None,
         "df_anomalies":   None, "anomaly_meta":  None,
+        "df_risk":        None, "risk_meta":     None,
         "report":         None, "report_path":   None,
     }
 
@@ -530,17 +532,20 @@ def _run_pipeline_with_live_ui(
         return run_baseline_agent(s, save_output=save_outputs)
     def _run_outlier(s):
         return run_outlier_agent(s, save_output=save_outputs)
+    def _run_risk(s):
+        return run_risk_profiling_agent(s, save_output=save_outputs)
     def _run_report(s):
         return run_report_agent(s, save_output=save_outputs, use_llm=use_llm, dry_run=dry_run)
 
     agent_stages = [
-        ("data",     "DataAgent",     0, _run_data,    "data_meta"),
-        ("feature",  "FeatureAgent",  1, _run_feature, "feature_meta"),
-        ("baseline", "BaselineAgent", 2, _run_baseline,"baseline_meta"),
-        ("outlier",  "OutlierAgent",  3, _run_outlier, "anomaly_meta"),
+        ("data",     "DataAgent",          0, _run_data,     "data_meta"),
+        ("feature",  "FeatureAgent",       1, _run_feature,  "feature_meta"),
+        ("baseline", "BaselineAgent",      2, _run_baseline, "baseline_meta"),
+        ("outlier",  "OutlierAgent",       3, _run_outlier,  "anomaly_meta"),
+        ("risk",     "RiskProfilingAgent", 4, _run_risk,     "risk_meta"),
     ]
     if run_report:
-        agent_stages.append(("report", "ReportAgent", 4, _run_report, "report"))
+        agent_stages.append(("report", "ReportAgent", 5, _run_report, "report"))
 
     # ── UI containers ────────────────────────────────────────────────────────
     stage_errors: dict[str, str]  = {}
