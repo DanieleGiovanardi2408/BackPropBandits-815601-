@@ -73,6 +73,7 @@ After running both pipelines on the same 567 routes:
 | Per-model agreement: IsolationForest | **r = 1.0000** |
 | Per-model agreement: LOF | **r = 1.0000** |
 | Per-model agreement: Autoencoder | **r = 0.9663** (stochastic training) |
+| Per-model agreement: Z-score | **r = 0.5808** (different baselines: Tukey IQR vs MAD — see *Design choices*) |
 | Top-10 most-anomalous routes overlap | **9 / 10** |
 | Top-50 most-anomalous routes overlap | **44 / 50** |
 
