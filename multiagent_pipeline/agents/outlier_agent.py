@@ -127,18 +127,30 @@ def run_outlier_agent(
         logger.info("LOF: score_lof range [%.4f, %.4f]",
                     out["score_lof"].min(), out["score_lof"].max())
 
-        # ── 3. Z-score (from z_ columns produced by BaselineAgent) ───────────
-        z_cols = [c for c in out.columns if c.startswith("z_")]
-        if z_cols:
-            z_proxy = out[z_cols].abs().mean(axis=1)
+        # ── 3. Z-score (consume baseline_score directly from BaselineAgent) ──
+        # The BaselineAgent already aggregates the per-feature MAD z-scores
+        # into the `baseline_score` column (mean of |z|). Using it directly
+        # makes the data flow visible (BaselineAgent → OutlierAgent) and
+        # removes the duplicated mean-of-z computation that used to live here.
+        if "baseline_score" in out.columns:
+            z_signal = pd.to_numeric(out["baseline_score"], errors="coerce").fillna(0.0)
+            z_source = "baseline_score (from BaselineAgent)"
         else:
-            # Fallback: z-score computed on the spot on the features
-            z_proxy = pd.Series(
-                np.abs(X_scaled).mean(axis=1), index=out.index
-            )
-        out["score_z"] = _minmax(z_proxy)
-        logger.info("Z-score: score_z range [%.4f, %.4f]",
-                    out["score_z"].min(), out["score_z"].max())
+            # Fallback chain — only fires if BaselineAgent did not run or its
+            # output schema is unexpected. Behaviour is identical to the
+            # historical inline computation.
+            z_cols = [c for c in out.columns if c.startswith("z_")]
+            if z_cols:
+                z_signal = out[z_cols].abs().mean(axis=1)
+                z_source = f"mean(|z|) over {len(z_cols)} z_ cols (fallback)"
+            else:
+                z_signal = pd.Series(np.abs(X_scaled).mean(axis=1), index=out.index)
+                z_source = "|X_scaled| mean (fallback, BaselineAgent missing)"
+        out["score_z"] = _minmax(z_signal)
+        logger.info(
+            "Z-score: source=%s, score_z range [%.4f, %.4f]",
+            z_source, out["score_z"].min(), out["score_z"].max(),
+        )
 
         # ── 4. Autoencoder (MLPRegressor) ────────────────────────────────────
         # Identical to classical notebook 04: architecture 11→8→4→8→11,

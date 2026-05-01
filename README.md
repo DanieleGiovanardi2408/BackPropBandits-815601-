@@ -53,8 +53,8 @@ The five agents (Reply spec topology):
 | # | Agent | Responsibility |
 |---|-------|---------------|
 | 1 | `DataAgent` | Loads `ALLARMI` + `TIPOLOGIA_VIAGGIATORE`, applies the user-defined perimeter, and engineers 54 numerical features per route via `FeatureBuilder` (the same shared module the classical pipeline calls inline). |
-| 2 | `BaselineAgent` | Robust MAD z-scores per BASELINE_FEATURE → composite `baseline_score`. |
-| 3 | `OutlierAgent` | 4-model weighted ensemble (real `sklearn` IF + LOF + Z + Autoencoder) → `ensemble_score` and `risk_label` (ALTA/MEDIA/NORMALE). |
+| 2 | `BaselineAgent` | Robust MAD z-scores per BASELINE_FEATURE → composite `baseline_score` (mean of absolute z) consumed as the Z-component of the OutlierAgent ensemble. |
+| 3 | `OutlierAgent` | 4-model weighted ensemble (real `sklearn` IF + LOF + Z + Autoencoder, where Z = BaselineAgent's `baseline_score`) → `ensemble_score` and `risk_label` (ALTA/MEDIA/NORMALE). |
 | 4 | `RiskProfilingAgent` | Five business rules → `confidence` (60% ML + 40% rules) → `final_risk` (CRITICO/ALTO/MEDIO/BASSO) + per-route `risk_drivers`. |
 | 5 | `ReportAgent` (LLM) | Optional Claude narrative for each ALTA/MEDIA route, citing top z-score drivers and the business rules that fired. Skipped automatically when no anomalies remain after profiling. |
 
@@ -247,7 +247,9 @@ Then check **Enable LLM Report** in the dashboard sidebar before running. Withou
 
 ## Design choices we want to flag explicitly
 
-- **Different baseline methods on purpose.** Classical uses hybrid Tukey IQR + 2.5σ z-score (per-feature flags, more interpretable when justifying a single anomalous feature); multi-agent uses robust MAD z-scores (single composite score, more robust to outliers, easier to explain to an LLM as a "deviation in σ"). Both methods are deliberately idiomatic for their architecture; the comparative analysis (notebook 07) shows the final outputs converge regardless.
+- **Different baseline methods on purpose.** Classical uses hybrid Tukey IQR + 2.5σ z-score (per-feature flags, more interpretable when justifying a single anomalous feature); multi-agent uses robust MAD z-scores (single composite `baseline_score` per route, more robust to outliers, easier to consume downstream). Both methods are deliberately idiomatic for their architecture; the comparative analysis (notebook 07) shows the final outputs converge regardless.
+
+- **The BaselineAgent feeds the OutlierAgent ensemble directly.** The `baseline_score` produced by `BaselineAgent` (mean of absolute MAD z-scores) is consumed verbatim as the Z-component of the 4-model ensemble inside `OutlierAgent` (`score_z = minmax(baseline_score)`). This is visible in the code (no inline recomputation) and means the BaselineAgent is structurally part of the detection pipeline, not just a diagnostic side-output.
 - **Autoencoder as 4th ensemble model.** The Reply spec lists `IsolationForest`, `LOF`, or `Z-score`. We added an MLPRegressor autoencoder (weight 0.20) because (a) it captures non-linear feature combinations the other three miss, and (b) it gracefully degrades — auto-excluded with weight redistribution when fewer than 30 normal samples are available, so small perimeters still work.
 - **Same business rules in both pipelines.** The classical `step_post_processing` and the multi-agent `RiskProfilingAgent` share five identical rules with identical thresholds (high INTERPOL %, high rejection rate, low closure on volume, multi-source alarms, high average alarm rate). The `br_score` Pearson correlation between the two pipelines is exactly **1.000** — by construction.
 
