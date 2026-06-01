@@ -4,25 +4,26 @@ Responsibilities (from the Reply slide):
     "Applies business rules equivalent to the classical post-processing layer
      (e.g. 'alert rate on route X exceeds 3x baseline')."
 
-Implements the five business rules from classical_pipeline/main.py
-step_post_processing(), strictly identical thresholds and logic, so that
-the multi-agent and classical pipelines remain comparable.
+Implements the five canonical business rules shared with the inline classical
+pipeline in main.ipynb (Section 6). Thresholds and logic are strictly
+identical on both sides, so the comparative analysis in Section 9 reports a
+true convergence certificate rather than an artefact of different rules.
 
 Business rules (each returns 0/1):
     br_high_interpol     pct_interpol         >= 0.30
     br_high_rejection    tasso_respinti       >= 0.25
     br_low_closure       tot_allarmi_log > 3  AND tasso_chiusura < 0.10
-    br_multi_source      pct_interpol > 0     AND pct_sdi > 0
+    br_multi_source      pct_interpol >= 0.10 AND pct_sdi >= 0.10
     br_high_alarm_rate   tasso_allarme_medio  >= 0.50
 
 Aggregates:
-    br_score   = sum(br_*) / 5                               in [0, 1]
+    br_score   = sum(br_*) / 5                              in [0, 1]
     confidence = 0.60 * ensemble_score + 0.40 * br_score    in [0, 1]
-    final_risk in {CRITICO, ALTO, MEDIO, BASSO}
-        - CRITICO  : risk_label == ALTA  AND br_score >= 0.4
-        - ALTO     : risk_label == ALTA  OR (MEDIA AND br_score >= 0.4)
-        - MEDIO    : risk_label == MEDIA
-        - BASSO    : otherwise
+    final_risk in {CRITICAL, HIGH, MEDIUM, LOW}
+        - CRITICAL : anomaly_label == HIGH    AND br_score >= 0.4
+        - HIGH     : anomaly_label == HIGH    OR (MEDIUM AND br_score >= 0.4)
+        - MEDIUM   : anomaly_label == MEDIUM
+        - LOW      : otherwise
 
 Also produces a `risk_drivers` list per route (textual reason codes) used
 downstream by ReportAgent for richer LLM explanations.
@@ -50,14 +51,16 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 # ─── Business-rule thresholds ────────────────────────────────────────────────
-# These constants MUST stay aligned with classical_pipeline/main.py
-# step_post_processing(); changing them here without changing the classical
-# side breaks the comparative analysis.
+# These constants MUST stay aligned with main.ipynb Section 6 (inline classical
+# post-processing) and with classical_pipeline/main.py step_post_processing().
+# Changing them here without updating those two sides breaks the comparative
+# analysis in Section 9 of main.ipynb.
 BR_THRESHOLDS = {
     "high_interpol_pct":     0.30,
     "high_rejection_rate":   0.25,
     "low_closure_volume":    3.0,    # tot_allarmi_log > 3
     "low_closure_rate":      0.10,   # AND tasso_chiusura < 0.10
+    "multi_source_pct":      0.10,   # pct_interpol >= 0.10 AND pct_sdi >= 0.10
     "high_alarm_rate":       0.50,
 }
 
@@ -66,11 +69,11 @@ CONFIDENCE_WEIGHTS = {"ml": 0.60, "rules": 0.40}
 
 # Driver labels surfaced to the LLM ReportAgent.
 _DRIVER_LABELS = {
-    "br_high_interpol":   "High INTERPOL alarm rate",
-    "br_high_rejection":  "High rejection rate",
-    "br_low_closure":     "Low alarm closure rate",
-    "br_multi_source":    "Multi-source alarms (INTERPOL + SDI)",
-    "br_high_alarm_rate": "High average alarm rate",
+    "br_high_interpol":   "High INTERPOL alarm share (>=30%)",
+    "br_high_rejection":  "High traveller rejection rate (>=25%)",
+    "br_low_closure":     "Operational backlog: high alarm volume with low closure rate",
+    "br_multi_source":    "Multi-database corroboration (INTERPOL + SDI, both >=10%)",
+    "br_high_alarm_rate": "High average alarm-per-traveller ratio (>=50%)",
 }
 
 
@@ -83,14 +86,18 @@ def _safe_col(df: pd.DataFrame, col: str) -> pd.Series:
 
 
 def _classify_final(ml_label: str, br_score: float) -> str:
-    """Replicates classical_pipeline.main.final_risk()."""
-    if ml_label == "ALTA" and br_score >= 0.4:
-        return "CRITICO"
-    if ml_label == "ALTA" or (ml_label == "MEDIA" and br_score >= 0.4):
-        return "ALTO"
-    if ml_label == "MEDIA":
-        return "MEDIO"
-    return "BASSO"
+    """Replicates the canonical final-risk classification ladder.
+
+    Mirrors the inline classical post-processing in main.ipynb (Section 6)
+    and classical_pipeline.main.step_post_processing().
+    """
+    if ml_label == "HIGH" and br_score >= 0.4:
+        return "CRITICAL"
+    if ml_label == "HIGH" or (ml_label == "MEDIUM" and br_score >= 0.4):
+        return "HIGH"
+    if ml_label == "MEDIUM":
+        return "MEDIUM"
+    return "LOW"
 
 
 def _drivers_for_row(row: pd.Series) -> list[str]:
@@ -109,7 +116,7 @@ def run_risk_profiling_agent(
 ) -> AgentState:
     """Applies business rules on the OutlierAgent output.
 
-    Reads ``state['df_anomalies']`` (must contain risk_label + ensemble_score
+    Reads ``state['df_anomalies']`` (must contain anomaly_label + ensemble_score
     + the BASELINE_FEATURES used by the rules), produces:
         * df_risk        : df_anomalies + br_* columns + br_score
                             + confidence + final_risk + risk_drivers
@@ -146,7 +153,8 @@ def run_risk_profiling_agent(
             (tasso_chiusura      <  BR_THRESHOLDS["low_closure_rate"])
         ).astype(int)
         df["br_multi_source"]    = (
-            (pct_interpol > 0) & (pct_sdi > 0)
+            (pct_interpol >= BR_THRESHOLDS["multi_source_pct"]) &
+            (pct_sdi      >= BR_THRESHOLDS["multi_source_pct"])
         ).astype(int)
         df["br_high_alarm_rate"] = (tasso_allarme_medio  >= BR_THRESHOLDS["high_alarm_rate"]).astype(int)
 
@@ -166,10 +174,10 @@ def run_risk_profiling_agent(
             + CONFIDENCE_WEIGHTS["rules"] * df["br_score"]
         ).round(4)
 
-        # ── 4. Final risk classification (CRITICO/ALTO/MEDIO/BASSO) ─────────
+        # ── 4. Final risk classification (CRITICAL/HIGH/MEDIUM/LOW) ─────────
         df["final_risk"] = [
             _classify_final(label, score)
-            for label, score in zip(df["risk_label"], df["br_score"])
+            for label, score in zip(df["anomaly_label"], df["br_score"])
         ]
 
         # ── 5. Per-route narrative drivers (consumed by ReportAgent) ────────
@@ -199,16 +207,16 @@ def run_risk_profiling_agent(
 
         risk_meta = {
             "n_routes":         int(len(df)),
-            "n_critico":        int(risk_counts.get("CRITICO", 0)),
-            "n_alto":           int(risk_counts.get("ALTO", 0)),
-            "n_medio":          int(risk_counts.get("MEDIO", 0)),
-            "n_basso":          int(risk_counts.get("BASSO", 0)),
+            "n_critical":       int(risk_counts.get("CRITICAL", 0)),
+            "n_high":           int(risk_counts.get("HIGH", 0)),
+            "n_medium":         int(risk_counts.get("MEDIUM", 0)),
+            "n_low":            int(risk_counts.get("LOW", 0)),
             "rule_hits":        rule_hits,
             "br_thresholds":    BR_THRESHOLDS,
             "confidence_weights": CONFIDENCE_WEIGHTS,
             "top_routes":       (
                 df.head(10)[
-                    ["ROTTA", "risk_label", "final_risk",
+                    ["ROTTA", "anomaly_label", "final_risk",
                      "ensemble_score", "br_score", "confidence"]
                 ].to_dict(orient="records")
             ),
@@ -217,9 +225,9 @@ def run_risk_profiling_agent(
         }
 
         logger.info(
-            "RiskProfilingAgent ✓ Completed — CRITICO=%d ALTO=%d MEDIO=%d BASSO=%d (%.2fs)",
-            risk_meta["n_critico"], risk_meta["n_alto"],
-            risk_meta["n_medio"],   risk_meta["n_basso"],
+            "RiskProfilingAgent ✓ Completed — CRITICAL=%d HIGH=%d MEDIUM=%d LOW=%d (%.2fs)",
+            risk_meta["n_critical"], risk_meta["n_high"],
+            risk_meta["n_medium"],   risk_meta["n_low"],
             risk_meta["elapsed_s"],
         )
 
@@ -266,7 +274,7 @@ if __name__ == "__main__":
     if rm.get("error"):
         print("ERROR:", rm["error"])
     else:
-        print(f"  CRITICO={rm['n_critico']}  ALTO={rm['n_alto']}  "
-              f"MEDIO={rm['n_medio']}  BASSO={rm['n_basso']}")
+        print(f"  CRITICAL={rm['n_critical']}  HIGH={rm['n_high']}  "
+              f"MEDIUM={rm['n_medium']}  LOW={rm['n_low']}")
         print(f"  Rule hits: {rm['rule_hits']}")
         print(f"  Top 3 routes by confidence: {rm['top_routes'][:3]}")

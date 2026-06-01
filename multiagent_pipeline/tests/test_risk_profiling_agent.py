@@ -5,7 +5,7 @@ These tests verify that:
     in BR_THRESHOLDS (and not before).
   * br_score is the simple mean of the five binary rules.
   * The blended confidence formula matches the documented weights.
-  * final_risk classification follows the CRITICO/ALTO/MEDIO/BASSO ladder.
+  * final_risk classification follows the CRITICAL/HIGH/MEDIUM/LOW ladder.
 
 Run with::
 
@@ -31,7 +31,7 @@ def _make_state(rows: list[dict]) -> dict:
     df = pd.DataFrame(rows)
     return {
         "df_anomalies": df,
-        "anomaly_meta": {"n_alta": 0, "n_media": 0, "n_normale": len(df)},
+        "anomaly_meta": {"n_high": 0, "n_medium": 0, "n_normal": len(df)},
     }
 
 
@@ -41,7 +41,7 @@ def _row(**overrides) -> dict:
         "ROTTA":               "TST-XXX",
         "PAESE_PART":          "Testland",
         "ZONA":                1,
-        "risk_label":          "NORMALE",
+        "anomaly_label":       "NORMAL",
         "ensemble_score":      0.0,
         "pct_interpol":        0.0,
         "pct_sdi":             0.0,
@@ -99,18 +99,25 @@ def test_br_low_closure_requires_both_volume_and_low_rate():
     assert df.loc["C", "br_low_closure"] == 1
 
 
-def test_br_multi_source_requires_both_channels_active():
-    """br_multi_source fires only when pct_interpol > 0 AND pct_sdi > 0."""
+def test_br_multi_source_requires_both_channels_above_floor():
+    """br_multi_source fires only when pct_interpol >= 0.10 AND pct_sdi >= 0.10.
+
+    The 0.10 floor (versus the historical > 0 rule) excludes routes where
+    the secondary database has only marginal presence; the rule now
+    captures genuine multi-source corroboration only.
+    """
     state = _make_state([
-        _row(ROTTA="A", pct_interpol=0.10, pct_sdi=0.00),  # only interpol
-        _row(ROTTA="B", pct_interpol=0.00, pct_sdi=0.10),  # only sdi
-        _row(ROTTA="C", pct_interpol=0.10, pct_sdi=0.10),  # both
+        _row(ROTTA="A", pct_interpol=0.05, pct_sdi=0.20),  # interpol below floor
+        _row(ROTTA="B", pct_interpol=0.20, pct_sdi=0.05),  # sdi below floor
+        _row(ROTTA="C", pct_interpol=0.10, pct_sdi=0.10),  # both at floor → yes
+        _row(ROTTA="D", pct_interpol=0.40, pct_sdi=0.30),  # both well above → yes
     ])
     out = run_risk_profiling_agent(state)
     df = out["df_risk"].set_index("ROTTA")
     assert df.loc["A", "br_multi_source"] == 0
     assert df.loc["B", "br_multi_source"] == 0
     assert df.loc["C", "br_multi_source"] == 1
+    assert df.loc["D", "br_multi_source"] == 1
 
 
 def test_br_high_alarm_rate_fires_at_threshold():
@@ -141,7 +148,7 @@ def test_br_score_is_mean_of_five_rules():
         ),
         _row(                                                     # 5 rules
             ROTTA="five",
-            pct_interpol=0.40, pct_sdi=0.10,
+            pct_interpol=0.40, pct_sdi=0.15,
             tasso_respinti=0.30,
             tot_allarmi_log=4.0, tasso_chiusura=0.05,
             tasso_allarme_medio=0.60,
@@ -177,12 +184,12 @@ def test_confidence_blends_ml_and_rules_with_documented_weights():
 @pytest.mark.parametrize(
     "ml_label,br_score,expected",
     [
-        ("ALTA",    0.6, "CRITICO"),  # ALTA + br_score >= 0.4 → CRITICO
-        ("ALTA",    0.2, "ALTO"),     # ALTA but br_score < 0.4 → ALTO
-        ("MEDIA",   0.6, "ALTO"),     # MEDIA + br_score >= 0.4 → ALTO
-        ("MEDIA",   0.2, "MEDIO"),    # MEDIA, low rules → MEDIO
-        ("NORMALE", 1.0, "BASSO"),    # NORMALE always BASSO regardless of rules
-        ("NORMALE", 0.0, "BASSO"),
+        ("HIGH",   0.6, "CRITICAL"),  # HIGH + br_score >= 0.4 → CRITICAL
+        ("HIGH",   0.2, "HIGH"),      # HIGH but br_score < 0.4 → HIGH
+        ("MEDIUM", 0.6, "HIGH"),      # MEDIUM + br_score >= 0.4 → HIGH
+        ("MEDIUM", 0.2, "MEDIUM"),    # MEDIUM, low rules → MEDIUM
+        ("NORMAL", 1.0, "LOW"),       # NORMAL always LOW regardless of rules
+        ("NORMAL", 0.0, "LOW"),
     ],
 )
 def test_classify_final_ladder(ml_label: str, br_score: float, expected: str):

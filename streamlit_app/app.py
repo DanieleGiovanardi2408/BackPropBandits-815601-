@@ -619,9 +619,9 @@ def _run_pipeline_with_live_ui(
 
 # ─────────────────────────── Route map helpers ───────────────────────────────
 
-_RISK_COLORS  = {"ALTA": "#ef4444", "MEDIA": "#f59e0b", "NORMALE": "#22c55e"}
-_RISK_WIDTHS  = {"ALTA": 2.5,       "MEDIA": 1.5,       "NORMALE": 0.5}
-_RISK_OPACITY = {"ALTA": 0.90,      "MEDIA": 0.65,      "NORMALE": 0.18}
+_RISK_COLORS  = {"HIGH": "#ef4444", "MEDIUM": "#f59e0b", "NORMAL": "#22c55e"}
+_RISK_WIDTHS  = {"HIGH": 2.5,       "MEDIUM": 1.5,       "NORMAL": 0.5}
+_RISK_OPACITY = {"HIGH": 0.90,      "MEDIUM": 0.65,      "NORMAL": 0.18}
 
 
 def _make_route_map_figure(
@@ -633,19 +633,19 @@ def _make_route_map_figure(
 
     Returns (fig, clickable_routes) where clickable_routes[i] is the ROTTA
     corresponding to trace i — used to map Plotly click events back to routes.
-    ALTA + MEDIA: one trace per route (hover + click).
-    NORMALE: single batched trace (performance).
+    HIGH + MEDIUM: one trace per route (hover + click).
+    NORMAL: single batched trace (performance).
     """
     findings_by_rotta = findings_by_rotta or {}
-    risk_col = "risk_label" if "risk_label" in df.columns else "anomaly_label"
+    risk_col = "anomaly_label" if "anomaly_label" in df.columns else "risk_label"
 
     traces: list            = []
     clickable_routes: list[str] = []
 
-    # Sort so ALTA renders on top of NORMALE
+    # Sort so HIGH renders on top of NORMAL
     df_work = df.copy()
-    _ro_map  = {"ALTA": 2, "MEDIA": 1, "NORMALE": 0}
-    df_work["_ro"] = df_work.get(risk_col, pd.Series("NORMALE", index=df.index)).map(_ro_map).fillna(0)
+    _ro_map  = {"HIGH": 2, "MEDIUM": 1, "NORMAL": 0}
+    df_work["_ro"] = df_work.get(risk_col, pd.Series("NORMAL", index=df.index)).map(_ro_map).fillna(0)
     df_work = df_work.sort_values("_ro")
 
     norm_lats: list = []
@@ -662,10 +662,10 @@ def _make_route_map_figure(
 
         lat_dep, lon_dep = IATA_COORDS[dep]
         lat_arr, lon_arr = IATA_COORDS[arr]
-        risk  = str(row.get(risk_col, "NORMALE"))
+        risk  = str(row.get(risk_col, "NORMAL"))
         score = float(row.get("ensemble_score") or row.get("anomaly_score") or 0)
 
-        if risk == "NORMALE":
+        if risk == "NORMAL":
             norm_lats.extend([lat_dep, lat_arr, None])
             norm_lons.extend([lon_dep, lon_arr, None])
         else:
@@ -700,7 +700,7 @@ def _make_route_map_figure(
             ))
             clickable_routes.append(rotta)
 
-    # NORMALE batch
+    # NORMAL batch
     if norm_lats:
         traces.append(go.Scattergeo(
             lat=norm_lats, lon=norm_lons,
@@ -708,7 +708,7 @@ def _make_route_map_figure(
             line=dict(width=0.5, color="#22c55e"),
             opacity=0.13,
             hoverinfo="skip",
-            name="NORMALE",
+            name="NORMAL",
             showlegend=False,
         ))
 
@@ -735,7 +735,7 @@ def _make_route_map_figure(
         ))
 
     # Legend dummy traces
-    for label in ["ALTA", "MEDIA", "NORMALE"]:
+    for label in ["HIGH", "MEDIUM", "NORMAL"]:
         traces.append(go.Scattergeo(
             lat=[None], lon=[None],
             mode="lines",
@@ -790,7 +790,7 @@ def _show_route_map_tab(df_anom: pd.DataFrame | None, report_obj: dict | None) -
             if rotta:
                 findings_by_rotta[rotta] = f
 
-    risk_col = "risk_label" if "risk_label" in df_anom.columns else "anomaly_label"
+    risk_col = "anomaly_label" if "anomaly_label" in df_anom.columns else "risk_label"
 
     # KPI header
     if risk_col in df_anom.columns:
@@ -801,9 +801,9 @@ def _show_route_map_tab(df_anom: pd.DataFrame | None, report_obj: dict | None) -
             and parts[0] in IATA_COORDS and parts[1] in IATA_COORDS
         )
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("ALTA",    int(counts.get("ALTA",    0)))
-        c2.metric("MEDIA",   int(counts.get("MEDIA",   0)))
-        c3.metric("NORMALE", int(counts.get("NORMALE", 0)))
+        c1.metric("HIGH",   int(counts.get("HIGH",   0)))
+        c2.metric("MEDIUM", int(counts.get("MEDIUM", 0)))
+        c3.metric("NORMAL", int(counts.get("NORMAL", 0)))
         c4.metric("Mapped routes", total_mapped)
 
     fig, clickable_routes = _make_route_map_figure(df_anom, findings_by_rotta)
@@ -825,7 +825,7 @@ def _show_route_map_tab(df_anom: pd.DataFrame | None, report_obj: dict | None) -
     # Route detail panel
     if risk_col in df_anom.columns:
         high_risk_routes = (
-            df_anom[df_anom[risk_col].isin(["ALTA", "MEDIA"])]
+            df_anom[df_anom[risk_col].isin(["HIGH", "MEDIUM"])]
             .sort_values("ensemble_score" if "ensemble_score" in df_anom.columns
                          else df_anom.columns[0], ascending=False)["ROTTA"]
             .dropna().tolist()
@@ -1192,31 +1192,31 @@ def main() -> None:
             if isinstance(df_view, pd.DataFrame) and not df_view.empty:
                 using_risk = "final_risk" in df_view.columns
 
-                # ML risk distribution (ALTA/MEDIA/NORMALE) — always available
-                st.markdown("### ML risk distribution (OutlierAgent)")
-                risk_col = "risk_label" if "risk_label" in df_view.columns else "anomaly_label"
+                # ML anomaly distribution (HIGH/MEDIUM/NORMAL) — always available
+                st.markdown("### ML anomaly distribution (OutlierAgent)")
+                risk_col = "anomaly_label" if "anomaly_label" in df_view.columns else "risk_label"
                 if risk_col in df_view.columns:
                     counts = (
                         df_view[risk_col]
                         .value_counts()
-                        .reindex(["ALTA", "MEDIA", "NORMALE"], fill_value=0)
+                        .reindex(["HIGH", "MEDIUM", "NORMAL"], fill_value=0)
                     )
                     st.bar_chart(counts)
 
-                # Final-risk distribution (CRITICO/ALTO/MEDIO/BASSO) from
+                # Final-risk distribution (CRITICAL/HIGH/MEDIUM/LOW) from
                 # RiskProfilingAgent — only if df_risk is present.
                 if using_risk:
                     st.markdown("### Final risk classification (RiskProfilingAgent)")
                     final_counts = (
                         df_view["final_risk"]
                         .value_counts()
-                        .reindex(["CRITICO", "ALTO", "MEDIO", "BASSO"], fill_value=0)
+                        .reindex(["CRITICAL", "HIGH", "MEDIUM", "LOW"], fill_value=0)
                     )
                     c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("CRITICO", int(final_counts.get("CRITICO", 0)))
-                    c2.metric("ALTO",    int(final_counts.get("ALTO", 0)))
-                    c3.metric("MEDIO",   int(final_counts.get("MEDIO", 0)))
-                    c4.metric("BASSO",   int(final_counts.get("BASSO", 0)))
+                    c1.metric("CRITICAL", int(final_counts.get("CRITICAL", 0)))
+                    c2.metric("HIGH",     int(final_counts.get("HIGH", 0)))
+                    c3.metric("MEDIUM",   int(final_counts.get("MEDIUM", 0)))
+                    c4.metric("LOW",      int(final_counts.get("LOW", 0)))
 
                     # Business-rule hit counts (RiskProfilingAgent meta)
                     rh = risk_meta.get("rule_hits") or {}
@@ -1232,7 +1232,7 @@ def main() -> None:
                 st.markdown("### Top routes")
                 preferred_cols = [
                     "ROTTA", "PAESE_PART", "ZONA",
-                    "risk_label", "final_risk", "confidence",
+                    "anomaly_label", "final_risk", "confidence",
                     "ensemble_score", "br_score", "baseline_score",
                     "risk_drivers",
                 ]
@@ -1278,14 +1278,14 @@ def main() -> None:
                     st.error(f"Missing columns in classical report: {missing_cl}")
                 else:
                     df_cmp = cl[cl_cols].merge(
-                        df_view[["ROTTA", "ensemble_score", "risk_label"]],
-                        on="ROTTA", how="inner",
+                        df_view[["ROTTA", "ensemble_score", "anomaly_label"]],
+                        on="ROTTA", how="inner", suffixes=("_cl", "_ma"),
                     )
                     if df_cmp.empty:
                         st.warning("No routes in common between the two pipelines.")
                     else:
-                        df_cmp["label_concorde"] = (
-                            df_cmp["anomaly_label"] == df_cmp["risk_label"]
+                        df_cmp["label_match"] = (
+                            df_cmp["anomaly_label_cl"] == df_cmp["anomaly_label_ma"]
                         )
                         df_cmp["delta_score"] = (
                             df_cmp["ensemble_score"] - df_cmp["anomaly_score"]
@@ -1301,7 +1301,7 @@ def main() -> None:
 
                         pr, _  = pearsonr( df_cmp["anomaly_score"], df_cmp["ensemble_score"])
                         sr, _  = spearmanr(df_cmp["anomaly_score"], df_cmp["ensemble_score"])
-                        agree  = df_cmp["label_concorde"].mean()
+                        agree  = df_cmp["label_match"].mean()
                         top_n  = min(20, n_cmp)
                         top_cl = set(df_cmp.nlargest(top_n, "anomaly_score")["ROTTA"])
                         top_ma = set(df_cmp.nlargest(top_n, "ensemble_score")["ROTTA"])
@@ -1320,14 +1320,14 @@ def main() -> None:
                                 x=alt.X("anomaly_score:Q",  title="Classical score"),
                                 y=alt.Y("ensemble_score:Q", title="Multi-Agent score"),
                                 color=alt.Color(
-                                    "anomaly_label:N",
+                                    "anomaly_label_cl:N",
                                     scale=alt.Scale(
-                                        domain=["ALTA", "MEDIA", "NORMALE"],
+                                        domain=["HIGH", "MEDIUM", "NORMAL"],
                                         range=["#e05252", "#e0a852", "#5285e0"],
                                     ),
                                     legend=alt.Legend(title="Classical label"),
                                 ),
-                                tooltip=["ROTTA", "anomaly_label", "risk_label",
+                                tooltip=["ROTTA", "anomaly_label_cl", "anomaly_label_ma",
                                          "anomaly_score", "ensemble_score", "delta_score"],
                             )
                             .properties(
@@ -1345,11 +1345,11 @@ def main() -> None:
                         st.altair_chart(chart + diagonal, use_container_width=True)
 
                         gold = df_cmp[
-                            (df_cmp["anomaly_label"] == "ALTA") &
-                            (df_cmp["risk_label"]    == "ALTA")
+                            (df_cmp["anomaly_label_cl"] == "HIGH") &
+                            (df_cmp["anomaly_label_ma"] == "HIGH")
                         ]
                         st.markdown(
-                            f"### ALTA routes agreed by both pipelines ({len(gold)} routes)"
+                            f"### HIGH routes agreed by both pipelines ({len(gold)} routes)"
                         )
                         if not gold.empty:
                             st.dataframe(
@@ -1358,7 +1358,7 @@ def main() -> None:
                                 use_container_width=True, hide_index=True,
                             )
                         else:
-                            st.info("No routes classified ALTA by both pipelines.")
+                            st.info("No routes classified HIGH by both pipelines.")
 
                         with st.expander(f"Full comparison table ({n_cmp} routes)"):
                             st.dataframe(
@@ -1386,10 +1386,10 @@ def main() -> None:
                 if risk_meta and not risk_meta.get("error"):
                     st.markdown("### Final risk classification (RiskProfilingAgent)")
                     cc = st.columns(4)
-                    cc[0].metric("CRITICO", int(risk_meta.get("n_critico", 0)))
-                    cc[1].metric("ALTO",    int(risk_meta.get("n_alto", 0)))
-                    cc[2].metric("MEDIO",   int(risk_meta.get("n_medio", 0)))
-                    cc[3].metric("BASSO",   int(risk_meta.get("n_basso", 0)))
+                    cc[0].metric("CRITICAL", int(risk_meta.get("n_critical", 0)))
+                    cc[1].metric("HIGH",     int(risk_meta.get("n_high", 0)))
+                    cc[2].metric("MEDIUM",   int(risk_meta.get("n_medium", 0)))
+                    cc[3].metric("LOW",      int(risk_meta.get("n_low", 0)))
 
                 findings = report_obj.get("findings", [])
                 if findings:

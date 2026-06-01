@@ -1,8 +1,8 @@
 """Threshold sensitivity analysis for the five business rules.
 
-The five thresholds in `RiskProfilingAgent.BR_THRESHOLDS` are inherited
-from the classical post-processing layer and were never perturbed: a
-reviewer is right to ask *how much do the final ALTA / MEDIA / NORMALE
+The thresholds in `RiskProfilingAgent.BR_THRESHOLDS` are inherited from
+the classical post-processing layer and were never perturbed: a reviewer
+is right to ask *how much do the final CRITICAL / HIGH / MEDIUM / LOW
 counts move if you shift one threshold by ±5 %?*
 
 This module answers that question deterministically. For each threshold
@@ -38,7 +38,7 @@ from multiagent_pipeline.agents.risk_profiling_agent import (
 
 # ── Default perturbation grid ─────────────────────────────────────────────
 DEFAULT_DELTAS = [-0.10, -0.05, 0.0, +0.05, +0.10]
-RISK_LEVELS    = ["CRITICO", "ALTO", "MEDIO", "BASSO"]
+RISK_LEVELS    = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
 
 
 # ── Core: compute final_risk under a perturbed threshold dict ─────────────
@@ -59,7 +59,10 @@ def _compute_final_risk(df: pd.DataFrame, thresholds: dict) -> pd.Series:
         (tot_allarmi_log >  thresholds["low_closure_volume"]) &
         (tasso_chiusura  <  thresholds["low_closure_rate"])
     ).astype(int)
-    br_multi_source    = ((pct_interpol > 0) & (pct_sdi > 0)).astype(int)
+    br_multi_source    = (
+        (pct_interpol >= thresholds["multi_source_pct"]) &
+        (pct_sdi      >= thresholds["multi_source_pct"])
+    ).astype(int)
     br_high_alarm_rate = (tasso_allarme_medio  >= thresholds["high_alarm_rate"]).astype(int)
 
     br_score = (
@@ -75,7 +78,7 @@ def _compute_final_risk(df: pd.DataFrame, thresholds: dict) -> pd.Series:
 
     return pd.Series(
         [_classify_final(label, score)
-         for label, score in zip(df.get("risk_label", "NORMALE"), br_score)],
+         for label, score in zip(df.get("anomaly_label", "NORMAL"), br_score)],
         index=df.index,
     )
 
@@ -95,7 +98,7 @@ def run_sensitivity_analysis(
     ----------
     df : pd.DataFrame
         Output of OutlierAgent (or df_anomalies). Must contain
-        ``risk_label``, ``ensemble_score`` and the BASELINE_FEATURES.
+        ``anomaly_label``, ``ensemble_score`` and the BASELINE_FEATURES.
     thresholds : dict, optional
         Baseline thresholds. Defaults to BR_THRESHOLDS.
     deltas : list[float], optional
@@ -105,7 +108,7 @@ def run_sensitivity_analysis(
     -------
     pd.DataFrame
         Long-format table with columns
-        ``threshold, delta_pct, perturbed_value, CRITICO, ALTO, MEDIO, BASSO``.
+        ``threshold, delta_pct, perturbed_value, CRITICAL, HIGH, MEDIUM, LOW``.
     """
     base = dict(thresholds or BR_THRESHOLDS)
     deltas = deltas or DEFAULT_DELTAS
@@ -133,7 +136,7 @@ def run_sensitivity_analysis(
 def to_heatmap_matrix(
     df_sens: pd.DataFrame,
     *,
-    risk_level: str = "ALTO",
+    risk_level: str = "HIGH",
 ) -> pd.DataFrame:
     """Pivots the long-format sensitivity table into (threshold × delta) for
     a single risk level. Useful for `seaborn.heatmap` rendering."""
@@ -147,11 +150,11 @@ def to_heatmap_matrix(
 
 
 def summarise(df_sens: pd.DataFrame) -> pd.DataFrame:
-    """Per-threshold summary: max absolute change in CRITICO+ALTO count
+    """Per-threshold summary: max absolute change in CRITICAL+HIGH count
     when the threshold is perturbed across the delta grid. Quantifies
     which rule the system is *most* sensitive to."""
     df_sens = df_sens.copy()
-    df_sens["high_risk"] = df_sens["CRITICO"] + df_sens["ALTO"]
+    df_sens["high_risk"] = df_sens["CRITICAL"] + df_sens["HIGH"]
     out = []
     for tname, group in df_sens.groupby("threshold"):
         baseline = group.loc[group["delta_pct"] == 0, "high_risk"].iloc[0]

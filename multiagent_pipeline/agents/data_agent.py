@@ -661,19 +661,19 @@ if __name__ == "__main__":
                 if "error" in bm:
                     print(f"  ERROR: {bm['error']}")
                     break
-                print(f"  df_baseline: {state['df_baseline'].shape} | soglia_alta={bm.get('soglia_alta')} | soglia_media={bm.get('soglia_media')}")
+                print(f"  df_baseline: {state['df_baseline'].shape} | threshold_high={bm.get('threshold_high')} | threshold_medium={bm.get('threshold_medium')}")
             elif agent_name == "OutlierAgent":
                 am = state.get("anomaly_meta") or {}
                 if "error" in am:
                     print(f"  ERROR: {am['error']}")
                     break
-                print(f"  ALTA={am.get('n_alta')} | MEDIA={am.get('n_media')} | NORMALE={am.get('n_normale')}")
+                print(f"  HIGH={am.get('n_high')} | MEDIUM={am.get('n_medium')} | NORMAL={am.get('n_normal')}")
             elif agent_name == "RiskProfilingAgent":
                 rm = state.get("risk_meta") or {}
                 if "error" in rm:
                     print(f"  ERROR: {rm['error']}")
                     break
-                print(f"  CRITICO={rm.get('n_critico')} | ALTO={rm.get('n_alto')} | MEDIO={rm.get('n_medio')} | BASSO={rm.get('n_basso')}")
+                print(f"  CRITICAL={rm.get('n_critical')} | HIGH={rm.get('n_high')} | MEDIUM={rm.get('n_medium')} | LOW={rm.get('n_low')}")
             elif agent_name == "ReportAgent":
                 rp = state.get("report_path")
                 rs = (state.get("report") or {}).get("summary", "N/A")

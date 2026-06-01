@@ -1,7 +1,7 @@
 """ReportAgent — fifth node of the multi-agent graph.
 
 Responsibilities:
-    Uses a real LLM to explain anomalous routes (ALTA/MEDIA) in natural
+    Uses a real LLM to explain anomalous routes (HIGH/MEDIUM) in natural
     language and build the final JSON report.
 """
 from __future__ import annotations
@@ -100,7 +100,7 @@ def format_route_for_llm(row: dict) -> str:
         f"ROUTE: {row.get('ROTTA', 'N/A')} | "
         f"Departure country: {row.get('PAESE_PART', 'N/A')} | "
         f"Zone: {row.get('ZONA', 'N/A')}\n"
-        f"Risk level: {row.get('risk_label', 'N/A')} | "
+        f"Anomaly level: {row.get('anomaly_label', 'N/A')} | "
         f"Ensemble score: {_fmt(row.get('ensemble_score', 0))}\n"
         f"Score per model: {models_str}\n"
         f"Volumes: total_alarms={_fmt(row.get('tot_allarmi_sum'))}, "
@@ -131,7 +131,7 @@ def generate_explanation(context: str, llm: ChatAnthropic) -> str:
         "and its deviation from the baseline (in sigma units);\n"
         "  - cite at least ONE business rule from the list of rules that fired, OR explicitly state "
         "that no business rule fired if the list is empty;\n"
-        "  - reference the final risk classification (CRITICO / ALTO / MEDIO / BASSO) so the reader "
+        "  - reference the final risk classification (CRITICAL / HIGH / MEDIUM / LOW) so the reader "
         "knows the operational severity, not just the ML score.\n\n"
         "Do not invent or assume any data that is not explicitly present below.\n\n"
         f"Route data:\n{context}\n\n"
@@ -147,23 +147,23 @@ def build_final_report(findings: list[dict], perimeter: dict, anomaly_meta: dict
 
     Builds the final JSON report with textual explanations.
     """
-    n_alta = int(anomaly_meta.get("n_alta", 0))
-    n_media = int(anomaly_meta.get("n_media", 0))
-    n_normale = int(anomaly_meta.get("n_normale", 0))
+    n_high = int(anomaly_meta.get("n_high", 0))
+    n_medium = int(anomaly_meta.get("n_medium", 0))
+    n_normal = int(anomaly_meta.get("n_normal", 0))
     scope = ", ".join([f"{k}={v}" for k, v in perimeter.items()]) if perimeter else "no filter"
     summary = (
         f"Analysis completed on {n_tot} routes ({scope}). "
-        f"Risk distribution: ALTA={n_alta}, MEDIA={n_media}, NORMALE={n_normale}. "
-        f"LLM explanations were generated for {len(findings)} ALTA/MEDIA routes."
+        f"Anomaly distribution: HIGH={n_high}, MEDIUM={n_medium}, NORMAL={n_normal}. "
+        f"LLM explanations were generated for {len(findings)} HIGH/MEDIUM routes."
     )
     return {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "perimeter": perimeter,
-        "n_rotte_analizzate": n_tot,
-        "distribution": {"alta": n_alta, "media": n_media, "normale": n_normale},
+        "n_routes_analysed": n_tot,
+        "distribution": {"high": n_high, "medium": n_medium, "normal": n_normal},
         "thresholds": {
-            "soglia_alta": anomaly_meta.get("soglia_alta"),
-            "soglia_media": anomaly_meta.get("soglia_media"),
+            "threshold_high":   anomaly_meta.get("threshold_high"),
+            "threshold_medium": anomaly_meta.get("threshold_medium"),
         },
         "findings": findings,
         "summary": summary,
@@ -203,7 +203,7 @@ def run_report_agent(
         if df.empty:
             raise ValueError("upstream DataFrame is empty: cannot generate report.")
         # ``a_meta`` is what the existing summary builder expects (counts of
-        # ALTA/MEDIA/NORMALE + thresholds). Always populate it from anomaly_meta
+        # HIGH/MEDIUM/NORMAL + thresholds). Always populate it from anomaly_meta
         # when present, falling back to the upstream meta otherwise.
         a_meta = state.get("anomaly_meta") or upstream_meta
 
@@ -220,11 +220,11 @@ def run_report_agent(
                 llm_warning = f"LLM init failed ({e}); using deterministic fallback."
                 logger.warning("ReportAgent -- %s", llm_warning)
 
-        # Routes to explain: all ALTA/MEDIA, sorted by descending score.
+        # Routes to explain: all HIGH/MEDIUM, sorted by descending score.
         # Full rows are passed to format_route_for_llm so it can extract
         # z-score drivers. The final findings dict only stores key fields.
         explain_df = (
-            df[df["risk_label"].isin(["ALTA", "MEDIA"])]
+            df[df["anomaly_label"].isin(["HIGH", "MEDIUM"])]
             .sort_values("ensemble_score", ascending=False)
             .copy()
         )
@@ -232,7 +232,7 @@ def run_report_agent(
         # Output columns include the RiskProfilingAgent layer so consumers
         # of the JSON report (Streamlit, downstream auditors) see the full
         # picture, not just the ML ensemble.
-        _output_cols = ["ROTTA", "PAESE_PART", "ZONA", "risk_label",
+        _output_cols = ["ROTTA", "PAESE_PART", "ZONA", "anomaly_label",
                         "ensemble_score", "score_composito", "baseline_score",
                         "final_risk", "confidence", "br_score", "risk_drivers"]
 

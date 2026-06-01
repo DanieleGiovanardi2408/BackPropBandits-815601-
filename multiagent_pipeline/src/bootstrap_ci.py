@@ -113,7 +113,7 @@ def bootstrap_agreement(
     ma: pd.DataFrame,
     *,
     label_col_cl: str = "anomaly_label",
-    label_col_ma: str = "risk_label",
+    label_col_ma: str = "anomaly_label",
     n_iter: int = 1000,
     sample_frac: float = 0.80,
     seed: int = 42,

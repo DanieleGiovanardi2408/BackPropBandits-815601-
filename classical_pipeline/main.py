@@ -50,6 +50,7 @@ PROC_DIR = ROOT / "data" / "processed"
 sys.path.insert(0, str(ROOT))
 
 from shared.preprocessing import run_preprocessing
+from shared.autoencoder import train_and_score as _ae_train_and_score
 from multiagent_pipeline.src.features import FeatureBuilder
 
 warnings.filterwarnings("ignore")
@@ -74,9 +75,11 @@ BASELINE_FEATURES = [
     "alarm_per_invest",
 ]
 
-ENSEMBLE_WEIGHTS = {"IF": 0.35, "LOF": 0.30, "Z": 0.15, "AE": 0.20}
-THRESHOLD_ALTA = 0.3579   # p97
-THRESHOLD_MEDIA = 0.2897  # p90
+# Data-driven ensemble weights (grid-search winner; see
+# multiagent_pipeline/src/ensemble_grid_search.py).
+ENSEMBLE_WEIGHTS = {"IF": 0.40, "LOF": 0.15, "Z": 0.30, "AE": 0.15}
+THRESHOLD_HIGH   = 0.3579   # p97  (data-driven at runtime; constant kept for documentation)
+THRESHOLD_MEDIUM = 0.2897   # p90  (idem)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -147,12 +150,35 @@ def step_baseline_construction(features: pd.DataFrame) -> pd.DataFrame:
             "is_sparse": int(iqr == 0),
         }
 
-    # ── Z-scores ──────────────────────────────────────────────────────────────
+    # ── Standard z-scores (mean / std) — kept for the hybrid flagging ─────────
     stds_safe = X.std().replace(0, 1.0)
     Z = (X - X.mean()) / stds_safe
     Z.columns = [f"z_{c}" for c in Z.columns]
 
-    # ── Anomaly flags per feature (hybrid Tukey + z-score) ────────────────────
+    # ── Robust MAD z-scores — same formula as the multi-agent BaselineAgent ──
+    # We compute these so the classical and multi-agent pipelines produce an
+    # IDENTICAL Z-component for the ensemble (Section 3 step_anomaly_detection
+    # uses `baseline_score` instead of `pct_anomalie`). The Tukey flags below
+    # are kept as audit signals.
+    #
+    # Implementation matches multiagent_pipeline.agents.baseline_agent._robust_zscore
+    # EXACTLY, including the MAD=0 → std fallback (sparse features where >50% of
+    # values equal the median would otherwise yield silently-zero columns).
+    z_mad = pd.DataFrame(index=X.index)
+    for col in BASELINE_FEATURES:
+        s = pd.to_numeric(X[col], errors="coerce").fillna(0.0)
+        med = float(s.median())
+        mad_val = float((s - med).abs().median())
+        if mad_val > 0:
+            z = (s - med) / (1.4826 * mad_val)
+        else:
+            std_val = float(s.std())
+            z = (s - med) / std_val if std_val > 0 else pd.Series(np.zeros(len(s)), index=s.index)
+        z_mad[col] = z
+    baseline_score = z_mad.abs().mean(axis=1)
+    z_mad.columns = [f"z_mad_{c}" for c in z_mad.columns]
+
+    # ── Anomaly flags per feature (hybrid Tukey + z-score) — audit only ──────
     flag_df = pd.DataFrame(index=features.index)
     for feat in BASELINE_FEATURES:
         stats = baseline_stats[feat]
@@ -162,9 +188,10 @@ def step_baseline_construction(features: pd.DataFrame) -> pd.DataFrame:
 
     flag_df["n_anomalie"] = flag_df.filter(like="flag_").sum(axis=1)
     flag_df["pct_anomalie"] = (flag_df["n_anomalie"] / len(BASELINE_FEATURES)).round(4)
+    flag_df["baseline_score"] = baseline_score.round(6)
 
     # ── Combine ───────────────────────────────────────────────────────────────
-    features_wb = pd.concat([features, Z, flag_df], axis=1)
+    features_wb = pd.concat([features, Z, z_mad, flag_df], axis=1)
 
     # ── Save ──────────────────────────────────────────────────────────────────
     features_wb.to_csv(PROC_DIR / "features_with_baseline.csv", index=False)
@@ -217,24 +244,25 @@ def step_anomaly_detection(features_wb: pd.DataFrame) -> pd.DataFrame:
     lof_raw = -lof.negative_outlier_factor_
     lof_anomaly = np.clip((lof_raw - lof_raw.min()) / (lof_raw.max() - lof_raw.min()), 0, 1)
 
-    # ── Model 3: Z-score baseline ─────────────────────────────────────────────
-    z_anomaly = features_wb["pct_anomalie"].fillna(0).values
+    # ── Model 3: Z-score baseline (MAD, identical to multi-agent BaselineAgent)
+    # Earlier versions used `pct_anomalie` (the Tukey + 2.5σ hybrid flag rate).
+    # We now consume the same `baseline_score` (mean of |MAD z-scores|) that
+    # the multi-agent pipeline computes, so the Z-component of the ensemble
+    # is identical between the two architectures by construction.
+    z_raw    = features_wb["baseline_score"].fillna(0).values
+    z_min, z_max = z_raw.min(), z_raw.max()
+    z_anomaly = (z_raw - z_min) / max(z_max - z_min, 1e-9)
 
-    # ── Model 4: Autoencoder (MLPRegressor) ───────────────────────────────────
+    # ── Model 4: Autoencoder (shared deterministic module) ─────────────────────
+    # ``shared.autoencoder`` sorts the rows by ROTTA and disables MLP early
+    # stopping so the AE component is identical between the two pipelines.
     normal_mask = iso_forest.predict(X_scaled) == 1
-    X_normal = X_scaled[normal_mask]
-    ae = MLPRegressor(
-        hidden_layer_sizes=(8, 4, 8),
-        activation="relu", solver="adam",
-        learning_rate_init=0.001, max_iter=1000,
-        random_state=42, early_stopping=True,
-        validation_fraction=0.10, n_iter_no_change=20,
-        verbose=False,
+    ae_result = _ae_train_and_score(
+        X_scaled,
+        normal_mask=normal_mask,
+        row_ids=features_wb["ROTTA"].astype(str).values,
     )
-    ae.fit(X_normal, X_normal)
-    X_reconstructed = ae.predict(X_scaled)
-    ae_error = np.mean((X_scaled - X_reconstructed) ** 2, axis=1)
-    ae_anomaly = np.clip((ae_error - ae_error.min()) / (ae_error.max() - ae_error.min()), 0, 1)
+    ae_anomaly = ae_result.score_ae
 
     # ── Ensemble score ────────────────────────────────────────────────────────
     W = ENSEMBLE_WEIGHTS
@@ -246,15 +274,15 @@ def step_anomaly_detection(features_wb: pd.DataFrame) -> pd.DataFrame:
     )
 
     # ── Risk labels (data-driven thresholds) ──────────────────────────────────
-    alta_th = max(float(np.percentile(ensemble, 97)), 0.30)
-    media_th = max(float(np.percentile(ensemble, 90)), 0.20)
+    high_th   = max(float(np.percentile(ensemble, 97)), 0.30)
+    medium_th = max(float(np.percentile(ensemble, 90)), 0.20)
 
     def classify(score: float) -> str:
-        if score >= alta_th:
-            return "ALTA"
-        if score >= media_th:
-            return "MEDIA"
-        return "NORMALE"
+        if score >= high_th:
+            return "HIGH"
+        if score >= medium_th:
+            return "MEDIUM"
+        return "NORMAL"
 
     labels = np.array([classify(s) for s in ensemble])
 
@@ -284,11 +312,11 @@ def step_anomaly_detection(features_wb: pd.DataFrame) -> pd.DataFrame:
 
     summary = {
         "n_routes": int(len(results)),
-        "n_alta": int((labels == "ALTA").sum()),
-        "n_media": int((labels == "MEDIA").sum()),
-        "n_normale": int((labels == "NORMALE").sum()),
-        "alta_threshold": round(alta_th, 4),
-        "media_threshold": round(media_th, 4),
+        "n_high":   int((labels == "HIGH").sum()),
+        "n_medium": int((labels == "MEDIUM").sum()),
+        "n_normal": int((labels == "NORMAL").sum()),
+        "threshold_high":   round(high_th, 4),
+        "threshold_medium": round(medium_th, 4),
         "threshold_method": "data-driven (p97/p90)",
         "ensemble_weights": ENSEMBLE_WEIGHTS,
         "top10_routes": [
@@ -302,19 +330,19 @@ def step_anomaly_detection(features_wb: pd.DataFrame) -> pd.DataFrame:
     with open(PROC_DIR / "anomaly_summary.json", "w") as f:
         json.dump(summary, f, indent=2)
 
-    n_alta = int((labels == "ALTA").sum())
-    n_media = int((labels == "MEDIA").sum())
+    n_high = int((labels == "HIGH").sum())
+    n_medium = int((labels == "MEDIUM").sum())
     logger.info(
-        "  -> %d ALTA, %d MEDIA, %d NORMALE -> anomaly_results.csv",
-        n_alta, n_media, int((labels == "NORMALE").sum()),
+        "  -> %d HIGH, %d MEDIUM, %d NORMAL -> anomaly_results.csv",
+        n_high, n_medium, int((labels == "NORMAL").sum()),
     )
 
     # Store models and scaled data for evaluation step
     results.attrs["_iso_forest"] = iso_forest
     results.attrs["_X_scaled"] = X_scaled
     results.attrs["_scaler"] = scaler
-    results.attrs["_alta_th"] = alta_th
-    results.attrs["_media_th"] = media_th
+    results.attrs["_high_th"] = high_th
+    results.attrs["_medium_th"] = medium_th
 
     return results
 
@@ -338,16 +366,16 @@ def step_post_processing(
         on="ROTTA", how="left", suffixes=("", "_feat"),
     )
 
-    # ── Business Rules ────────────────────────────────────────────────────────
-    df["br_high_interpol"] = (df["pct_interpol"] >= 0.30).astype(int)
-    df["br_high_rejection"] = (df["tasso_respinti"] >= 0.25).astype(int)
-    df["br_low_closure"] = (
+    # ── Business Rules — canonical (aligned with multi-agent RiskProfilingAgent) ──
+    df["br_high_interpol"]  = (df["pct_interpol"]    >= 0.30).astype(int)
+    df["br_high_rejection"] = (df["tasso_respinti"]  >= 0.25).astype(int)
+    df["br_low_closure"]    = (
         (df["tot_allarmi_log"] > 3) &
         (df["tasso_chiusura"] < 0.10)
     ).astype(int)
-    df["br_multi_source"] = (
-        (df["pct_interpol"] > 0) &
-        (df["pct_sdi"] > 0)
+    df["br_multi_source"]   = (
+        (df["pct_interpol"] >= 0.10) &
+        (df["pct_sdi"]      >= 0.10)
     ).astype(int)
     df["br_high_alarm_rate"] = (df["tasso_allarme_medio"] >= 0.50).astype(int)
 
@@ -366,32 +394,32 @@ def step_post_processing(
     def final_risk(row):
         ml = row["anomaly_label"]
         br = row["br_score"]
-        if ml == "ALTA" and br >= 0.4:
-            return "CRITICO"
-        if ml == "ALTA" or (ml == "MEDIA" and br >= 0.4):
-            return "ALTO"
-        if ml == "MEDIA":
-            return "MEDIO"
-        return "BASSO"
+        if ml == "HIGH" and br >= 0.4:
+            return "CRITICAL"
+        if ml == "HIGH" or (ml == "MEDIUM" and br >= 0.4):
+            return "HIGH"
+        if ml == "MEDIUM":
+            return "MEDIUM"
+        return "LOW"
 
-    df["risk_level"] = df.apply(final_risk, axis=1)
+    df["final_risk"] = df.apply(final_risk, axis=1)
     df = df.sort_values("confidence", ascending=False).reset_index(drop=True)
 
-    # ── Risk profiles (for non-BASSO routes) ──────────────────────────────────
-    alert_routes = df[df["risk_level"] != "BASSO"].copy()
+    # ── Risk profiles (for non-LOW routes) ────────────────────────────────────
+    alert_routes = df[df["final_risk"] != "LOW"].copy()
     profiles = []
     for _, row in alert_routes.iterrows():
         drivers = []
         if row["br_high_interpol"]:
-            drivers.append("High INTERPOL alarm rate")
+            drivers.append("High INTERPOL alarm share (>=30%)")
         if row["br_high_rejection"]:
-            drivers.append("High rejection rate")
+            drivers.append("High traveller rejection rate (>=25%)")
         if row["br_low_closure"]:
-            drivers.append("Low alarm closure rate")
+            drivers.append("Operational backlog: high alarm volume with low closure rate")
         if row["br_multi_source"]:
-            drivers.append("Multi-source alarms (INTERPOL + SDI)")
+            drivers.append("Multi-database corroboration (INTERPOL + SDI, both >=10%)")
         if row["br_high_alarm_rate"]:
-            drivers.append("High average alarm rate")
+            drivers.append("High average alarm-per-traveller ratio (>=50%)")
 
         # ZONA may arrive as np.int64 (legacy) or as object/string after
         # the recent _fix_paese_zona refactor → coerce to a JSON-friendly form.
@@ -408,7 +436,7 @@ def step_post_processing(
             "rotta": str(row["ROTTA"]),
             "paese": str(row["PAESE_PART"]) if pd.notna(row["PAESE_PART"]) else None,
             "zona": _zona,
-            "risk_level": str(row["risk_level"]),
+            "final_risk": str(row["final_risk"]),
             "anomaly_score": float(row["anomaly_score"]),
             "confidence": float(row["confidence"]),
             "br_score": float(row["br_score"]),
@@ -421,8 +449,8 @@ def step_post_processing(
 
     df.to_csv(PROC_DIR / "final_report.csv", index=False)
 
-    for lvl in ["CRITICO", "ALTO", "MEDIO", "BASSO"]:
-        n = int((df["risk_level"] == lvl).sum())
+    for lvl in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]:
+        n = int((df["final_risk"] == lvl).sum())
         if n:
             logger.info("  -> %s: %d routes", lvl, n)
 
@@ -445,7 +473,7 @@ def step_evaluation(
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X_raw)
 
-    labels_binary = (results["anomaly_label"] != "NORMALE").astype(int).values
+    labels_binary = (results["anomaly_label"] != "NORMAL").astype(int).values
 
     # ── 5a. Silhouette score ──────────────────────────────────────────────────
     try:
@@ -626,8 +654,8 @@ def run_classical_pipeline(*, skip_eval: bool = False, verbose: bool = False) ->
         results = step_anomaly_detection(features_wb)
         summary["steps"]["anomaly_detection"] = {
             "ok": True, "elapsed_s": round(time.perf_counter() - t3, 3),
-            "n_alta": int((results["anomaly_label"] == "ALTA").sum()),
-            "n_media": int((results["anomaly_label"] == "MEDIA").sum()),
+            "n_high":   int((results["anomaly_label"] == "HIGH").sum()),
+            "n_medium": int((results["anomaly_label"] == "MEDIUM").sum()),
         }
     except Exception as e:
         summary["steps"]["anomaly_detection"] = {"ok": False, "error": str(e)}

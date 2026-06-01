@@ -55,15 +55,22 @@ class AgentState(TypedDict):
     baseline_meta: Optional[dict]         # z-score threshold, n_baseline_features, source
 
     # ── OutlierAgent output ───────────────────────────────────────────────────
-    df_anomalies: Optional[Any]           # pd.DataFrame — IF/LOF/Z/AE scores + risk label
-    anomaly_meta: Optional[dict]          # n_alta, n_media, n_normale, thresholds used
+    df_anomalies: Optional[Any]           # pd.DataFrame — IF/LOF/Z/AE scores + anomaly_label
+    anomaly_meta: Optional[dict]          # n_high, n_medium, n_normal, thresholds used
 
     # ── SupervisorAgent output ────────────────────────────────────────────────
     supervisor_meta: Optional[dict]       # n_first_pass_alta, n_robust_alta, n_downgraded
 
+    # ── Cycle counter for the supervisor → outlier feedback loop ──────────────
+    # Incremented every time OutlierAgent runs. The conditional edge
+    # `after_supervisor` re-routes to OutlierAgent when supervisor disagrees
+    # heavily (downgrade_rate > 0.5) but only while this counter is below
+    # _MAX_OUTLIER_ITERATIONS (defined in main.py) — prevents infinite loops.
+    outlier_iterations: Optional[int]
+
     # ── RiskProfilingAgent output ─────────────────────────────────────────────
     df_risk: Optional[Any]                # pd.DataFrame — anomalies + br_* + final_risk
-    risk_meta: Optional[dict]             # n_critico, n_alto, rule_hits, thresholds
+    risk_meta: Optional[dict]             # n_critical, n_high, rule_hits, thresholds
 
     # ── ReportAgent output ────────────────────────────────────────────────────
     report: Optional[dict]                # final report with LLM explanations
@@ -101,19 +108,24 @@ class Perimeter(BaseModel):
 #    to ensure a fair comparison between the two architectures.
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Ensemble weights — same as classical pipeline (anomaly_summary.json)
+# Ensemble weights — data-driven (winner of the grid search over the 4-simplex
+# with objective = 0.5 · bootstrap_stability + 0.5 · BR_rank_corr_01;
+# see multiagent_pipeline/src/ensemble_grid_search.py and the ablation study
+# in multiagent_pipeline/src/ensemble_ablation.py). These values supersede
+# the original principled defaults (0.35/0.30/0.15/0.20) which sat 3.5 %
+# below the grid optimum on the same objective.
 ENSEMBLE_WEIGHTS = {
-    "IF":  0.35,   # IsolationForest
-    "LOF": 0.30,   # Local Outlier Factor
-    "Z":   0.15,   # Z-score
-    "AE":  0.20,   # Autoencoder
+    "IF":  0.40,   # IsolationForest — strongest individual ranker (br_rank_corr=0.58)
+    "LOF": 0.15,   # Local Outlier Factor — ablation flagged as redundant with IF
+    "Z":   0.30,   # Z-score (MAD baseline) — highest individual BR alignment (0.59)
+    "AE":  0.15,   # Autoencoder — keeps non-linear coverage at a lighter weight
 }
 
-# Reference risk-label thresholds from the classical pipeline (anomaly_summary.json).
+# Reference anomaly-label thresholds from the classical pipeline (anomaly_summary.json).
 # The multi-agent recomputes them data-driven (p97/p90) at runtime in OutlierAgent;
 # these values serve as documentation of the classical baseline only.
-THRESHOLD_ALTA_CLASSICAL  = 0.3579   # classical p97
-THRESHOLD_MEDIA_CLASSICAL = 0.2897   # classical p90
+THRESHOLD_HIGH_CLASSICAL   = 0.3579   # classical p97
+THRESHOLD_MEDIUM_CLASSICAL = 0.2897   # classical p90
 
 # Features used for z-score baseline — same as classical (baseline_stats.json)
 BASELINE_FEATURES = [

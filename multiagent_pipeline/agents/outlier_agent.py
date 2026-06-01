@@ -27,7 +27,6 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
-from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
 
 from multiagent_pipeline.state import (
@@ -35,6 +34,7 @@ from multiagent_pipeline.state import (
     BASELINE_FEATURES,
     ENSEMBLE_WEIGHTS,
 )
+from shared.autoencoder import train_and_score as _ae_train_and_score
 
 logger = logging.getLogger(__name__)
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -152,45 +152,25 @@ def run_outlier_agent(
             z_source, out["score_z"].min(), out["score_z"].max(),
         )
 
-        # ── 4. Autoencoder (MLPRegressor) ────────────────────────────────────
-        # Identical to classical notebook 04: architecture 11→8→4→8→11,
-        # trained only on normal routes (semi-supervised via IsolationForest).
-        # On small perimeters (<30 normal samples) the Autoencoder does not have
-        # enough data to generalize → excluded from the ensemble and weights
-        # redistributed proportionally among IF, LOF, Z-score.
-        _MIN_SAMPLES_AE = 30
-        normal_mask = if_model.predict(X_scaled) == 1
-        X_normal = X_scaled[normal_mask]
-        use_autoencoder = X_normal.shape[0] >= _MIN_SAMPLES_AE
-
-        if use_autoencoder:
-            logger.info("Autoencoder: training on %d normal routes (out of %d total)",
-                        X_normal.shape[0], X_scaled.shape[0])
-            ae = MLPRegressor(
-                hidden_layer_sizes=(8, 4, 8),
-                activation="relu",
-                solver="adam",
-                learning_rate_init=0.001,
-                max_iter=2000,
-                random_state=_RANDOM_STATE,
-                early_stopping=True,
-                validation_fraction=0.10,
-                n_iter_no_change=20,
-                verbose=False,
-            )
-            ae.fit(X_normal, X_normal)
-            X_reconstructed = ae.predict(X_scaled)
-            ae_error = np.mean((X_scaled - X_reconstructed) ** 2, axis=1)
-            out["score_ae"] = _minmax(pd.Series(ae_error, index=out.index))
-            logger.info("Autoencoder: score_ae range [%.4f, %.4f]",
-                        out["score_ae"].min(), out["score_ae"].max())
-        else:
-            logger.warning(
-                "Autoencoder EXCLUDED: only %d normal routes (< %d). "
-                "Ensemble reduced to IF + LOF + Z-score with redistributed weights.",
-                X_normal.shape[0], _MIN_SAMPLES_AE,
-            )
-            out["score_ae"] = 0.0
+        # ── 4. Autoencoder (shared deterministic module) ─────────────────────
+        # Delegates to ``shared.autoencoder.train_and_score`` which forces a
+        # stable row order (sort by ROTTA) and disables early stopping so
+        # both pipelines produce IDENTICAL AE scores on the same input.
+        # The previous local implementation used ``early_stopping=True``
+        # which introduced run-to-run variability on borderline routes;
+        # that source of stochastic divergence has been eliminated.
+        normal_mask_arr = (if_model.predict(X_scaled) == 1)
+        row_ids = (
+            out["ROTTA"].astype(str).values if "ROTTA" in out.columns
+            else np.arange(len(out))
+        )
+        ae_result = _ae_train_and_score(
+            X_scaled,
+            normal_mask=normal_mask_arr,
+            row_ids=row_ids,
+        )
+        out["score_ae"] = ae_result.score_ae
+        use_autoencoder = ae_result.use_ae
 
         # ── Weighted ensemble ────────────────────────────────────────────────
         # If Autoencoder is active: same weights as the classical pipeline.
@@ -219,14 +199,14 @@ def run_outlier_agent(
                     out["ensemble_score"].min(), out["ensemble_score"].max())
 
         # ── Data-driven thresholds (p97/p90) — identical to classical notebook 05 ──
-        threshold_alta  = float(out["ensemble_score"].quantile(0.97))
-        threshold_media = float(out["ensemble_score"].quantile(0.90))
-        logger.info("Data-driven thresholds: ALTA=%.4f (p97) | MEDIA=%.4f (p90)",
-                    threshold_alta, threshold_media)
+        threshold_high   = float(out["ensemble_score"].quantile(0.97))
+        threshold_medium = float(out["ensemble_score"].quantile(0.90))
+        logger.info("Data-driven thresholds: HIGH=%.4f (p97) | MEDIUM=%.4f (p90)",
+                    threshold_high, threshold_medium)
 
-        out["risk_label"] = np.where(
-            out["ensemble_score"] >= threshold_alta, "ALTA",
-            np.where(out["ensemble_score"] >= threshold_media, "MEDIA", "NORMALE"),
+        out["anomaly_label"] = np.where(
+            out["ensemble_score"] >= threshold_high, "HIGH",
+            np.where(out["ensemble_score"] >= threshold_medium, "MEDIUM", "NORMAL"),
         )
 
         saved_to = None
@@ -239,14 +219,14 @@ def run_outlier_agent(
             logger.info("OutlierAgent output saved to: %s", saved_to)
 
         meta = {
-            "n_alta"          : int((out["risk_label"] == "ALTA").sum()),
-            "n_media"         : int((out["risk_label"] == "MEDIA").sum()),
-            "n_normale"       : int((out["risk_label"] == "NORMALE").sum()),
-            "soglia_alta"     : threshold_alta,
-            "soglia_media"    : threshold_media,
+            "n_high"          : int((out["anomaly_label"] == "HIGH").sum()),
+            "n_medium"        : int((out["anomaly_label"] == "MEDIUM").sum()),
+            "n_normal"        : int((out["anomaly_label"] == "NORMAL").sum()),
+            "threshold_high"  : threshold_high,
+            "threshold_medium": threshold_medium,
             "threshold_method": "data-driven (p97/p90)",
             "autoencoder_used": use_autoencoder,
-            "metodo_ensemble" : (
+            "ensemble_method" : (
                 "IF + LOF + Z-score + Autoencoder (real sklearn)"
                 if use_autoencoder
                 else "IF + LOF + Z-score (Autoencoder excluded: dataset too small)"
@@ -254,17 +234,17 @@ def run_outlier_agent(
             "feature_cols"    : feat_cols,
             "n_features"      : len(feat_cols),
             "saved_to"        : saved_to,
-            "top_rotte"       : (
+            "top_routes"      : (
                 out.sort_values("ensemble_score", ascending=False)
-                .head(10)[["ROTTA", "ensemble_score", "risk_label"]]
+                .head(10)[["ROTTA", "ensemble_score", "anomaly_label"]]
                 .to_dict(orient="records")
             ),
             "elapsed_s": round(time.perf_counter() - started_at, 3),
         }
 
         logger.info(
-            "OutlierAgent ✓ Completed — ALTA=%d MEDIA=%d NORMALE=%d (%.2fs)",
-            meta["n_alta"], meta["n_media"], meta["n_normale"], meta["elapsed_s"],
+            "OutlierAgent ✓ Completed — HIGH=%d MEDIUM=%d NORMAL=%d (%.2fs)",
+            meta["n_high"], meta["n_medium"], meta["n_normal"], meta["elapsed_s"],
         )
         return {**state, "df_anomalies": out, "anomaly_meta": meta}
 
@@ -296,9 +276,9 @@ if __name__ == "__main__":
     s = run_outlier_agent(s)
     print("\n=== OutlierAgent RESULT ===")
     am = s["anomaly_meta"]
-    print(f"  ALTA={am['n_alta']} | MEDIA={am['n_media']} | NORMALE={am['n_normale']}")
-    print(f"  soglia_alta={am['soglia_alta']:.4f} | soglia_media={am['soglia_media']:.4f}")
-    print(f"  method: {am['metodo_ensemble']}")
+    print(f"  HIGH={am['n_high']} | MEDIUM={am['n_medium']} | NORMAL={am['n_normal']}")
+    print(f"  threshold_high={am['threshold_high']:.4f} | threshold_medium={am['threshold_medium']:.4f}")
+    print(f"  method: {am['ensemble_method']}")
     print(f"  features: {am['n_features']} columns")
     print(f"  elapsed: {am['elapsed_s']}s")
-    print(f"  top routes: {am['top_rotte'][:3]}")
+    print(f"  top routes: {am['top_routes'][:3]}")

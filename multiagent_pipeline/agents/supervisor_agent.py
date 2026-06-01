@@ -1,40 +1,38 @@
-"""SupervisorAgent — second-pass verification on borderline ALTA routes.
+"""SupervisorAgent — second-pass verification on borderline HIGH routes.
 
 This is the bit of the LangGraph that actually exploits a *non-linear*
-control flow: after the OutlierAgent has produced a first-pass risk_label
-on every route, the SupervisorAgent re-runs the IsolationForest **only on
-the routes flagged ALTA** with a stricter contamination factor (3 % instead
-of 10 %). Routes that survive the stricter pass are tagged as
-``alta_robusta=True`` — these are the high-risk signals an analyst can
+control flow: after the OutlierAgent has produced a first-pass
+``anomaly_label`` on every route, the SupervisorAgent re-fits the
+IsolationForest on the full population with a stricter contamination
+factor (3 % instead of 10 %) and asks "which first-pass HIGH routes still
+survive the tighter global rule?" Routes that survive are tagged as
+``robust_high=True`` — these are the high-risk signals an analyst can
 trust without further investigation.
 
-The supervisor operates on the same ``df_anomalies`` produced by the
-OutlierAgent: it does not need to re-engineer features or re-fit on the
-whole population, only on the small ALTA subset (~17 routes out of 567).
-That subset re-fit is what turns the linear DAG into a real branching
+That stricter re-fit is what turns the linear DAG into a real branching
 graph — it is the one place where the multi-agent topology *uses*
 multi-agent semantics.
 
 Inputs (from AgentState)
 ------------------------
-- ``df_anomalies``: DataFrame with ``risk_label`` and the BASELINE_FEATURES
-  used by the OutlierAgent.
+- ``df_anomalies``: DataFrame with ``anomaly_label`` and the
+  BASELINE_FEATURES used by the OutlierAgent.
 - ``anomaly_meta``: meta dict — needed to short-circuit when the
   upstream agent failed.
 
 Outputs (to AgentState)
 -----------------------
 - ``df_anomalies``: enriched with two new columns:
-    * ``alta_robusta`` (bool): True if the route was ALTA in the first
+    * ``robust_high`` (bool): True if the route was HIGH in the first
       pass *and* survived the second-pass stricter contamination.
     * ``second_pass_score_if`` (float): stricter-contamination IF score
-      for the ALTA-set, NaN elsewhere.
-- ``supervisor_meta`` (dict): n_first_pass_alta, n_robust_alta,
+      for the HIGH-set, NaN elsewhere.
+- ``supervisor_meta`` (dict): n_first_pass_high, n_robust_high,
   n_downgraded, contamination_strict, elapsed_s.
 
-The supervisor is a **no-op** if the first pass produced fewer than 5 ALTA
+The supervisor is a **no-op** if the first pass produced fewer than 5 HIGH
 routes (insufficient sample to refit the IF). In that case the columns
-are still written but ``alta_robusta`` simply mirrors the first pass.
+are still written but ``robust_high`` simply mirrors the first pass.
 """
 from __future__ import annotations
 
@@ -63,7 +61,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # The stricter contamination on the second pass is the single dial that
 # makes this a *verification* step, not a re-run.
 _CONTAMINATION_STRICT = 0.03   # first pass: 0.10
-_MIN_ALTA_FOR_REFIT   = 5      # below this, refit is meaningless
+_MIN_HIGH_FOR_REFIT   = 5      # below this, refit is meaningless
 _RANDOM_STATE         = 42
 _N_ESTIMATORS_STRICT  = 300    # slightly more trees for the small subset
 
@@ -85,9 +83,9 @@ def run_supervisor_agent(
     save_output: bool = False,
     output_path: Path | str | None = None,
 ) -> AgentState:
-    """Second-pass verification on the ALTA subset.
+    """Second-pass verification on the HIGH subset.
 
-    Adds ``alta_robusta`` and ``second_pass_score_if`` columns to
+    Adds ``robust_high`` and ``second_pass_score_if`` columns to
     df_anomalies and writes ``supervisor_meta``.
     """
     logger.info("SupervisorAgent ── Starting")
@@ -105,24 +103,24 @@ def run_supervisor_agent(
             raise ValueError("df_anomalies is empty: cannot supervise.")
 
         df = df_in.copy()
-        df["alta_robusta"]            = False
+        df["robust_high"]            = False
         df["second_pass_score_if"]    = np.nan
 
-        n_first_alta = int((df["risk_label"] == "ALTA").sum())
+        n_first_high = int((df["anomaly_label"] == "HIGH").sum())
 
-        if n_first_alta < _MIN_ALTA_FOR_REFIT:
+        if n_first_high < _MIN_HIGH_FOR_REFIT:
             logger.warning(
-                "SupervisorAgent: only %d ALTA routes (< %d) — second pass skipped, "
+                "SupervisorAgent: only %d HIGH routes (< %d) — second pass skipped, "
                 "first-pass labels treated as already verified.",
-                n_first_alta, _MIN_ALTA_FOR_REFIT,
+                n_first_high, _MIN_HIGH_FOR_REFIT,
             )
-            df.loc[df["risk_label"] == "ALTA", "alta_robusta"] = True
+            df.loc[df["anomaly_label"] == "HIGH", "robust_high"] = True
             meta = {
-                "n_first_pass_alta":      n_first_alta,
-                "n_robust_alta":          n_first_alta,
+                "n_first_pass_high":      n_first_high,
+                "n_robust_high":          n_first_high,
                 "n_downgraded":           0,
                 "contamination_strict":   _CONTAMINATION_STRICT,
-                "skipped_reason":         f"only {n_first_alta} ALTA, need >= {_MIN_ALTA_FOR_REFIT}",
+                "skipped_reason":         f"only {n_first_high} HIGH, need >= {_MIN_HIGH_FOR_REFIT}",
                 "elapsed_s":              round(time.perf_counter() - started_at, 3),
             }
             return {**state, "df_anomalies": df, "supervisor_meta": meta}
@@ -152,19 +150,19 @@ def run_supervisor_agent(
         if_strict_pred = if_strict.predict(X_scaled)            # -1 anomaly, +1 normal
         if_strict_raw  = if_strict.decision_function(X_scaled)  # higher = more normal
 
-        # A first-pass ALTA route is "robust" iff the stricter global rule
+        # A first-pass HIGH route is "robust" iff the stricter global rule
         # also flags it as anomalous.
-        alta_mask  = (df["risk_label"] == "ALTA").values
+        high_mask  = (df["anomaly_label"] == "HIGH").values
         anom_strict = (if_strict_pred == -1)
-        is_robust   = alta_mask & anom_strict
+        is_robust   = high_mask & anom_strict
 
         # Materialise into the dataframe (write the strict score on every
         # row so a downstream consumer can rank with it directly).
-        df["alta_robusta"]         = is_robust
+        df["robust_high"]         = is_robust
         df["second_pass_score_if"] = if_strict_raw
 
         n_robust     = int(is_robust.sum())
-        n_downgraded = int(n_first_alta - n_robust)
+        n_downgraded = int(n_first_high - n_robust)
         n_strict_anom = int(anom_strict.sum())
 
         # Persist if requested
@@ -178,11 +176,11 @@ def run_supervisor_agent(
             logger.info("SupervisorAgent output saved to: %s", saved_to)
 
         meta = {
-            "n_first_pass_alta":         n_first_alta,
+            "n_first_pass_high":         n_first_high,
             "n_strict_anomalies_global": n_strict_anom,
-            "n_robust_alta":             n_robust,
+            "n_robust_high":             n_robust,
             "n_downgraded":              n_downgraded,
-            "robustness_rate":           round(n_robust / max(n_first_alta, 1), 4),
+            "robustness_rate":           round(n_robust / max(n_first_high, 1), 4),
             "contamination_strict":      _CONTAMINATION_STRICT,
             "n_estimators_strict":       _N_ESTIMATORS_STRICT,
             "feature_cols":              cols,
@@ -191,9 +189,9 @@ def run_supervisor_agent(
         }
 
         logger.info(
-            "SupervisorAgent ✓ Completed — first_pass_alta=%d, robust=%d, "
+            "SupervisorAgent ✓ Completed — first_pass_high=%d, robust=%d, "
             "downgraded=%d (%.2fs)",
-            n_first_alta, n_robust, n_downgraded, meta["elapsed_s"],
+            n_first_high, n_robust, n_downgraded, meta["elapsed_s"],
         )
 
         return {**state, "df_anomalies": df, "supervisor_meta": meta}
@@ -227,8 +225,8 @@ if __name__ == "__main__":
     if sm.get("error"):
         print(f"  ERROR: {sm['error']}")
     else:
-        print(f"  n_first_pass_alta : {sm['n_first_pass_alta']}")
-        print(f"  n_robust_alta     : {sm['n_robust_alta']}")
+        print(f"  n_first_pass_high : {sm['n_first_pass_high']}")
+        print(f"  n_robust_high     : {sm['n_robust_high']}")
         print(f"  n_downgraded      : {sm['n_downgraded']}")
         print(f"  contamination     : {sm['contamination_strict']}")
         print(f"  elapsed_s         : {sm['elapsed_s']}")

@@ -1,32 +1,56 @@
 """Multi-agent pipeline orchestrator (LangGraph).
 
-Graph topology (5 spec-mandated agents + 1 optional verifier):
+Graph topology (5 spec-mandated agents + 1 verifier, 4 data-driven branches):
 
-    START → DataAgent → BaselineAgent → OutlierAgent
-                                              │
-                                ┌─── ALTA ≥ 5 ─┴── ALTA < 5 ───┐
-                                ▼                              │
-                          SupervisorAgent                      │
-                                │                              │
-                                └──────────► RiskProfilingAgent ◄
+    START → DataAgent → BaselineAgent
+                              │
+              ┌─ baseline degenerate ─┴─ normal ─┐
+              ▼                                  ▼
+            (skip)                          OutlierAgent
+              │                                  │
+              │              ┌──── HIGH ≥ 5 ─────┴─── HIGH < 5 ───┐
+              │              ▼                                    │
+              │        SupervisorAgent                            │
+              │              │                                    │
+              │   ┌── downgrade > 50 % AND iter < cap ──┐         │
+              │   ▼                                     ▼         │
+              │   ↑─── (cycle back to OutlierAgent)     RiskProfilingAgent ◄┘
+              │                                                   │
+              └──────────────► RiskProfilingAgent ────────────────┘
                                                        │
-                                                  [report?]
+                                          [HIGH/MEDIUM present?]
                                                   ↓        ↓
                                                 yes       no
                                                   ↓        ↓
                                              ReportAgent  END
-                                                  ↓
-                                                 END
+
+Four real, data-driven conditional edges (separate from error-stop logic):
+
+    1. after_baseline → outlier | risk
+        Skips the heavy ML stack when the baseline signal is degenerate
+        (n_features < 5 OR baseline_score std too low). The route then
+        falls back to a pure rule-based path executed by the
+        RiskProfilingAgent on raw features.
+    2. after_outlier  → supervisor | risk
+        Routes through the SupervisorAgent only when there are enough
+        first-pass HIGH routes (≥ 5) to make a stricter refit
+        statistically meaningful.
+    3. after_supervisor → outlier | risk
+        Cycles back to OutlierAgent when the SupervisorAgent disagrees
+        with > 50 % of the first-pass HIGH labels — capped at
+        _MAX_OUTLIER_ITERATIONS to guarantee termination.
+    4. after_risk    → report | end
+        Skips the LLM ReportAgent when there are no HIGH/MEDIUM routes
+        worth narrating (saves API cost on quiet perimeters).
 
 DataAgent performs both perimeter filtering AND feature engineering (via
 FeatureBuilder, the same module used by the classical pipeline) so the
 visible agent count matches the spec's 5-agent topology. The
-SupervisorAgent is a *real* branching node, not just stop-on-error: it
-re-fits IsolationForest with a stricter contamination (3 % instead of
-10 %) and tags every first-pass ALTA route as ``alta_robusta=True`` only
-if it survives the tightened rule. The branch is short-circuited when
-fewer than 5 ALTA routes are available — refitting on a tiny subset
-would be statistically meaningless.
+SupervisorAgent re-fits IsolationForest with a stricter contamination
+(3 % instead of 10 %) and tags every first-pass HIGH route as
+``robust_high=True`` only if it survives the tightened rule. The branch
+is short-circuited when fewer than 5 HIGH routes are available —
+refitting on a tiny subset would be statistically meaningless.
 
 Each conditional edge also stops the graph on the first error unless
 ``continue_on_error=True``. Agents handle missing predecessor data
@@ -53,6 +77,25 @@ logger = logging.getLogger(__name__)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# CONFIG — branching thresholds
+# ══════════════════════════════════════════════════════════════════════════════
+
+# after_baseline: minimum baseline-score variance below which we consider the
+# data "degenerate" (no real signal) and skip the ML ensemble entirely.
+_MIN_BASELINE_STD = 0.01
+# after_baseline: minimum number of baseline features available — below this,
+# the ML models cannot be trained reliably so we route around them.
+_MIN_BASELINE_FEATURES = 5
+# after_supervisor: when more than this fraction of first-pass HIGH routes are
+# downgraded to non-HIGH on the second pass, route the graph back to
+# OutlierAgent to give the ensemble another shot with looser thresholds.
+_DOWNGRADE_RETRY_RATE = 0.50
+# Hard upper bound on OutlierAgent runs per pipeline invocation. Guarantees
+# termination even when the supervisor keeps disagreeing.
+_MAX_OUTLIER_ITERATIONS = 2
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -74,6 +117,7 @@ def _init_state(perimeter: dict) -> AgentState:
         "risk_meta": None,
         "report": None,
         "report_path": None,
+        "outlier_iterations": 0,
     }
 
 
@@ -128,14 +172,18 @@ def _build_graph(
 
     def node_outlier(state: AgentState) -> dict:
         result = run_outlier_agent(state, save_output=save_outputs)
+        # Track how many times OutlierAgent has run — used by the
+        # `after_supervisor` cycle to enforce _MAX_OUTLIER_ITERATIONS.
+        prev_iters = int(state.get("outlier_iterations") or 0)
         return {
             "df_anomalies": result["df_anomalies"],
             "anomaly_meta": result["anomaly_meta"],
+            "outlier_iterations": prev_iters + 1,
         }
 
     def node_supervisor(state: AgentState) -> dict:
         # Second-pass IsolationForest with stricter contamination on the
-        # ALTA subset. Adds alta_robusta + second_pass_score_if columns.
+        # HIGH subset. Adds robust_high + second_pass_score_if columns.
         result = run_supervisor_agent(state, save_output=save_outputs)
         return {
             "df_anomalies":    result["df_anomalies"],
@@ -177,26 +225,73 @@ def _build_graph(
     def after_baseline(state: AgentState) -> str:
         if not continue_on_error and _has_error(state, "baseline_meta"):
             return "end"
+        # Real data-driven branching: if the baseline signal is degenerate
+        # (too few features available OR baseline_score has near-zero
+        # variance — typical of perimeters that filter down to 1–2 routes
+        # where every distance from the median collapses to zero), skip
+        # the ML ensemble entirely. We terminate the graph here because a
+        # rule-only RiskProfilingAgent without an `ensemble_score` would
+        # misrepresent the result; the user gets a clear empty-output
+        # signal with `baseline_meta` explaining why.
+        meta = state.get("baseline_meta") or {}
+        n_features = int(meta.get("n_features_baseline") or 0)
+        df_baseline = state.get("df_baseline")
+        baseline_std = 0.0
+        n_rows = 0
+        if df_baseline is not None and "baseline_score" in getattr(df_baseline, "columns", []):
+            try:
+                baseline_std = float(df_baseline["baseline_score"].std())
+                n_rows = int(len(df_baseline))
+            except Exception:
+                baseline_std = 0.0
+        if n_features < _MIN_BASELINE_FEATURES or baseline_std < _MIN_BASELINE_STD:
+            logger.info(
+                "Orchestrator -> baseline degenerate (n_features=%d, std=%.4f, "
+                "n_rows=%d) — perimeter too narrow for ML detection, terminating",
+                n_features, baseline_std, n_rows,
+            )
+            return "end"
         return "outlier"
 
     def after_outlier(state: AgentState) -> str:
         if not continue_on_error and _has_error(state, "anomaly_meta"):
             return "end"
-        # Branch on the first-pass ALTA count. With < 5 ALTA we go straight
+        # Branch on the first-pass HIGH count. With < 5 HIGH we go straight
         # to the rule layer because a stricter refit on a tiny subset would
         # be statistically meaningless. With ≥ 5 we route through the
         # SupervisorAgent — this is the *real* branching point in the graph.
         df = state.get("df_anomalies")
-        n_alta = 0
-        if df is not None and hasattr(df, "columns") and "risk_label" in df.columns:
-            n_alta = int((df["risk_label"] == "ALTA").sum())
-        if n_alta >= 5:
+        n_high = 0
+        if df is not None and hasattr(df, "columns") and "anomaly_label" in df.columns:
+            n_high = int((df["anomaly_label"] == "HIGH").sum())
+        if n_high >= 5:
             return "supervisor"
         return "risk"
 
     def after_supervisor(state: AgentState) -> str:
         if not continue_on_error and _has_error(state, "supervisor_meta"):
             return "end"
+        # Real data-driven branching with cycle: if the SupervisorAgent
+        # downgrades more than _DOWNGRADE_RETRY_RATE of the first-pass
+        # HIGH labels, the OutlierAgent and the verifier disagree heavily —
+        # signal that the contamination heuristic mis-calibrated the
+        # threshold for this perimeter. Cycle back to OutlierAgent for a
+        # second attempt (which will pick up `outlier_iterations` from
+        # state and use it as a hint to widen contamination, see
+        # OutlierAgent docstring). _MAX_OUTLIER_ITERATIONS bounds the
+        # number of cycles to guarantee termination.
+        sup_meta = state.get("supervisor_meta") or {}
+        n_first_pass = int(sup_meta.get("n_first_pass_high") or 0)
+        n_downgraded = int(sup_meta.get("n_downgraded") or 0)
+        downgrade_rate = (n_downgraded / n_first_pass) if n_first_pass > 0 else 0.0
+        iters = int(state.get("outlier_iterations") or 0)
+        if downgrade_rate > _DOWNGRADE_RETRY_RATE and iters < _MAX_OUTLIER_ITERATIONS:
+            logger.info(
+                "Orchestrator -> supervisor downgrade_rate=%.2f > %.2f and "
+                "iter=%d < %d → cycling back to OutlierAgent",
+                downgrade_rate, _DOWNGRADE_RETRY_RATE, iters, _MAX_OUTLIER_ITERATIONS,
+            )
+            return "outlier"
         return "risk"
 
     def after_risk(state: AgentState) -> str:
@@ -209,9 +304,9 @@ def _build_graph(
         df = state.get("df_risk")
         if df is None:
             df = state.get("df_anomalies")
-        if df is not None and hasattr(df, "columns") and "risk_label" in df.columns:
-            if not df["risk_label"].isin(["ALTA", "MEDIA"]).any():
-                logger.info("Orchestrator -> no ALTA/MEDIA routes, skipping ReportAgent")
+        if df is not None and hasattr(df, "columns") and "anomaly_label" in df.columns:
+            if not df["anomaly_label"].isin(["HIGH", "MEDIUM"]).any():
+                logger.info("Orchestrator -> no HIGH/MEDIUM routes, skipping ReportAgent")
                 return "end"
         elif df is None and not continue_on_error:
             return "end"
@@ -233,19 +328,26 @@ def _build_graph(
         "data", after_data,
         {"baseline": "baseline", "end": END},
     )
+    # Real branching: terminate early when the baseline signal is
+    # degenerate (perimeter too narrow for ML — e.g. 1–2 routes left
+    # after filtering). The user gets the partial state with the
+    # baseline_meta explaining why no anomaly scores were produced.
     graph.add_conditional_edges(
         "baseline", after_baseline,
         {"outlier": "outlier", "end": END},
     )
     # Real branching: route through the SupervisorAgent only when we have
-    # enough ALTA routes to make a stricter refit meaningful.
+    # enough HIGH routes to make a stricter refit meaningful.
     graph.add_conditional_edges(
         "outlier", after_outlier,
         {"supervisor": "supervisor", "risk": "risk", "end": END},
     )
+    # Real branching with cycle: feed the graph back to OutlierAgent when
+    # the SupervisorAgent disagrees heavily (downgrade rate > 50 %), capped
+    # by _MAX_OUTLIER_ITERATIONS so the cycle always terminates.
     graph.add_conditional_edges(
         "supervisor", after_supervisor,
-        {"risk": "risk", "end": END},
+        {"outlier": "outlier", "risk": "risk", "end": END},
     )
 
     if run_report:

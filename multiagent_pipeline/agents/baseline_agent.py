@@ -83,13 +83,13 @@ def run_baseline_agent(
 
         # Baseline score: mean of the absolute robust deviations
         df_baseline["baseline_score"] = df_baseline[z_cols].abs().mean(axis=1)
-        soglia_media = float(df_baseline["baseline_score"].quantile(0.90))
-        soglia_alta = float(df_baseline["baseline_score"].quantile(0.97))
+        threshold_medium = float(df_baseline["baseline_score"].quantile(0.90))
+        threshold_high = float(df_baseline["baseline_score"].quantile(0.97))
 
         df_baseline["baseline_flag"] = np.where(
-            df_baseline["baseline_score"] >= soglia_alta,
-            "ALTA",
-            np.where(df_baseline["baseline_score"] >= soglia_media, "MEDIA", "NORMALE"),
+            df_baseline["baseline_score"] >= threshold_high,
+            "HIGH",
+            np.where(df_baseline["baseline_score"] >= threshold_medium, "MEDIUM", "NORMAL"),
         )
 
         saved_to = None
@@ -103,11 +103,11 @@ def run_baseline_agent(
 
         baseline_meta = {
             "n_features_baseline": len(feature_cols),
-            "z_score_threshold": round(soglia_media, 6),
-            "soglia_media": round(soglia_media, 6),
-            "soglia_alta": round(soglia_alta, 6),
+            "z_score_threshold": round(threshold_medium, 6),
+            "threshold_medium": round(threshold_medium, 6),
+            "threshold_high":   round(threshold_high, 6),
             "source": "computed_live",
-            "n_rotte_con_zscore": int(len(df_baseline)),
+            "n_routes_with_zscore": int(len(df_baseline)),
             "feature_cols_used": feature_cols,
             "feature_cols_missing": missing_cols,
             "zscore_stats": stats,
@@ -155,5 +155,5 @@ if __name__ == "__main__":
     else:
         print("df_baseline shape:", out["df_baseline"].shape)
         print("n_features_baseline:", out["baseline_meta"]["n_features_baseline"])
-        print("soglia_media:", out["baseline_meta"]["soglia_media"])
-        print("soglia_alta:", out["baseline_meta"]["soglia_alta"])
+        print("threshold_medium:", out["baseline_meta"]["threshold_medium"])
+        print("threshold_high:",   out["baseline_meta"]["threshold_high"])
