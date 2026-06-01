@@ -421,7 +421,7 @@ A **multi-locale `ReportAgent`** would expose the narrative language as a runtim
 .
 ├── README.md                       This file
 ├── main.ipynb                      Single-notebook tour of the project
-├── Oral_presentation_replay.pptx   Oral defence slides
+├── Oral_presentation.pdf           Oral defence slides
 ├── requirements.txt
 ├── .env.example                    ANTHROPIC_API_KEY template
 ├── images/                         All PNG figures + tables/ CSV summaries
