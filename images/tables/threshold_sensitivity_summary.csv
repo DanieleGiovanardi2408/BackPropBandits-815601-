@@ -1,0 +1,7 @@
+threshold,baseline_high_risk,max_abs_swing,swing_pct_of_baseline
+high_alarm_rate,38,1,2.6
+high_rejection_rate,38,1,2.6
+multi_source_pct,38,1,2.6
+high_interpol_pct,38,0,0.0
+low_closure_rate,38,0,0.0
+low_closure_volume,38,0,0.0

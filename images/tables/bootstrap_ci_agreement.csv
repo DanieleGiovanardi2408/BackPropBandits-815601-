@@ -1,0 +1,2 @@
+point_estimate,bootstrap_mean,bootstrap_std,ci95_lower,ci95_upper,n_iter,sample_frac
+1.0,1.0,0.0,1.0,1.0,1000,0.8

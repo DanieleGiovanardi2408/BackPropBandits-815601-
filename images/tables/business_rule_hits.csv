@@ -1,0 +1,11 @@
+rule_id,rule_name,classical,multi_agent,delta
+br_high_interpol,"High INTERPOL share
+(>=30%)",69,69,0
+br_high_rejection,"High rejection rate
+(>=25%)",96,96,0
+br_low_closure,"Operational backlog
+(high volume + low closure)",148,148,0
+br_multi_source,"Multi-DB corroboration
+(INTERPOL + SDI both >=10%)",152,152,0
+br_high_alarm_rate,"High alarm-per-traveller
+(>=50%)",78,78,0
