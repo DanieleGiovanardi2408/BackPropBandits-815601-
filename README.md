@@ -272,7 +272,7 @@ The graph respects the Reply specification of five visible agents. The `Supervis
 | 2 | `BaselineAgent` | Computes robust MAD z-scores per baseline feature and aggregates them into a single `baseline_score` consumed downstream as the Z-component of the ensemble. |
 | 3 | `OutlierAgent` | Trains the four-model weighted ensemble (IF + LOF + Z + AE) and produces `ensemble_score` and `anomaly_label` (HIGH / MEDIUM / NORMAL). |
 | 4 | `RiskProfilingAgent` | Applies the five canonical business rules, computes `br_score`, blends ML and rules into `confidence`, and assigns `final_risk` (CRITICAL / HIGH / MEDIUM / LOW). Produces a per-route `risk_drivers` list of textual reason codes consumed by the LLM downstream. |
-| 5 | `ReportAgent` (LLM) | Generates a Claude-authored natural-language explanation for each HIGH/MEDIUM route, weaving together the top z-score drivers from the BaselineAgent and the business rules that actually fired. |
+| 5 | `ReportAgent` (LLM) | Generates a natural-language explanation for each route that warrants one, weaving together the top z-score drivers from the BaselineAgent and the business rules that actually fired. The narration engine is pluggable (cloud Claude or a local model) and faithful to the injected figures by construction — see Section 5.4. |
 | ★ | `SupervisorAgent` *(verifier, optional)* | Re-fits Isolation Forest at `contamination = 0.03` on the full population and tags first-pass HIGH routes as `robust_high = True` only if they survive the stricter rule. |
 
 ### 5.2 The DAG topology
@@ -282,7 +282,7 @@ The graph carries **four data-driven conditional edges** on top of the standard 
 1. **after_baseline** — terminate early when the baseline signal is degenerate (fewer than five features available or `baseline_score` standard deviation below 0.01); the pipeline returns with a clear empty-output diagnostic.
 2. **after_outlier** — route through `SupervisorAgent` only when the first pass produces ≥ 5 HIGH labels; otherwise short-circuit to the rule layer (refitting Isolation Forest on a tiny subset would be statistically meaningless).
 3. **after_supervisor** — **cycle back to `OutlierAgent`** when the verifier downgrades more than 50 % of the first-pass HIGH labels, capped at two iterations to guarantee termination. This is the one place where the topology is genuinely non-linear.
-4. **after_risk** — skip the LLM `ReportAgent` when there are no HIGH/MEDIUM routes worth narrating, saving API cost on quiet perimeters.
+4. **after_risk** — skip the `ReportAgent` entirely when there are no HIGH/MEDIUM routes worth narrating, saving both compute and any API cost on quiet perimeters.
 
 ### 5.3 Where the multi-agent topology earns its weight
 
@@ -291,6 +291,66 @@ Three things drop out of the LangGraph design that would not survive a flat sequ
 * **Per-agent failure isolation.** If `BaselineAgent` fails on a degenerate perimeter, the orchestrator still returns a meaningful partial state with a `baseline_meta.error` field and a human-readable `user_message`; the Streamlit dashboard renders the partial output and tells the analyst what to fix.
 * **The supervisor → outlier cycle.** The verifier disagreeing with more than 50 % of the first-pass HIGH labels is a genuine signal that the contamination heuristic mis-calibrated the threshold for the current perimeter. A flat script cannot widen the search reactively; the multi-agent graph can.
 * **Dynamic perimeter filtering.** `DataAgent` accepts a runtime perimeter dict (year, country, airport, zone) and the rest of the graph adapts. The Streamlit interactive dashboard at `streamlit_app/app.py` makes use of exactly this affordance to let an analyst restrict the analysis on the fly.
+
+### 5.4 — The `ReportAgent`: a pluggable, cost-efficient narration layer
+
+The `ReportAgent` is the only node the two pipelines do not share. The classical script ends at a ranked CSV; the multi-agent graph adds a natural-language explanation for the routes that warrant one. It is also the only node that can incur an external cost, so we treated its cost-efficiency as a first-class design constraint rather than an afterthought — the brief asks precisely which architecture is more convenient, and under what operational conditions.
+
+#### 5.4.1 — A pluggable backend
+
+The narration engine is chosen at runtime by a single `build_llm()` factory, keyed on the `LLM_BACKEND` environment variable. Every downstream call goes through the LangChain `.invoke([...])` interface, so the backend is swapped without touching the orchestration.
+
+| `LLM_BACKEND` | Engine | When to use |
+|---|---|---|
+| `anthropic` *(default)* | Claude (cloud) | premium quality; data may leave the perimeter |
+| `openai_compatible` | local model via LM Studio / Ollama / vLLM | zero marginal cost, on-prem, offline |
+| `none` | deterministic templates | no model calls at all |
+
+The default is `anthropic`, so a checkout with no extra configuration behaves exactly as the original cloud setup. The `openai_compatible` backend is the one that matters for the brief: the narration runs on hardware we control, which removes the per-call API cost and keeps the NDA-protected route data inside the perimeter — a property a border-control deployment cannot trade away.
+
+#### 5.4.2 — Faithful narration by construction
+
+On a security report a narration that invents a number is worse than no narration at all. Rather than ask the model to behave, we remove its opportunity to misbehave. Every figure a narration may cite — the top z-score drivers with their values and σ, the business rules that fired, the final-risk tier — is assembled deterministically and placed in the prompt, and the model is told to copy the figures verbatim in at most three sentences of connective prose. A guardrail then scans the output and replaces any number absent from that context with the nearest real value, treating percentage and decimal forms as equivalent. The figures a narration cites are therefore faithful by construction, on any backend.
+
+The effect is measurable. Moving the local model from a free-form prompt to the constrained one raised its per-figure faithfulness from 0.98 to 1.00 and cut the average narration from 5.1 to 2.3 sentences — shorter output that is also faster to generate. The numbers come from `data/processed/llm_benchmark.json`, produced by the harness described next.
+
+#### 5.4.3 — Choosing a local model
+
+We benchmarked candidate local models on the real narration task with `multiagent_pipeline/src/llm_benchmark.py`, which records end-to-end latency (p50 / p95), throughput, per-figure faithfulness, output length and projected cost into `data/processed/llm_benchmark.json`. Two findings drove the choice.
+
+First, **reasoning models are unusable for this task on CPU.** The "thinking" models we tried (`qwen3.5-9b`, `gemma-4`) spent their whole token budget on the internal reasoning trace and returned empty narrations. The task is short, constrained summarisation, not reasoning, so we use a non-reasoning instruct model.
+
+Second, among the 3B-class instruct models faithfulness varies, and **Qwen2.5-3B is the most reliable of the three we tested:**
+
+| Model | Latency / route | Sentences | Per-figure faithfulness |
+|---|---|---|---|
+| **Qwen2.5-3B-Instruct** *(selected)* | ~8 s | 5.1 → 2.3 constrained | **0.98 → 1.00 with guardrail** |
+| Phi-3.5-mini-Instruct | ~22 s | 4.3 | 0.91 |
+| Llama-3.2-3B-Instruct | ~12 s | 6.9 | 0.85 |
+
+A useful by-product of the benchmark is that CPU narration is **memory-bandwidth bound, not compute bound**. A 7B model saturates the memory bus at four threads — adding cores does nothing — while the smaller 3B still scales to six; model size, not core count, is the dominant latency lever. The same effect explains why a modest Apple-Silicon GPU (M1, 8 GB) and a 12-vCPU CPU-only server land at roughly the same per-route latency on a 3B model: the GPU's advantage is throttled by the small unified memory, and the model is small enough that the CPU keeps pace.
+
+The Apple-Silicon machine was only our benchmark bench; the deployment target is the CPU-only server, and that is where the local backend earns its keep. Because such a server runs 24/7, the model stays resident in memory between requests — there is no cold-start tax — the report can be scheduled or served on demand at any hour, and the marginal cost of every narration stays at zero indefinitely. That is a budget profile a metered cloud API cannot match for a system meant to run continuously: once the hardware is paid for, an always-on local model narrates as many routes, as many times, as the analysts want, for nothing.
+
+We serve the local model through LM Studio: it is loaded once and exposed over an OpenAI-compatible endpoint, and the pipeline points `LLM_BASE_URL` at it. The load configuration we used:
+
+![LM Studio local server settings](images/lmstudio_local_server_settings.png)
+
+*Configuration screenshot — LM Studio serving `qwen2.5-3b-instruct` (Q4, 1.93 GB) on the CPU-only server: context length 1024, GPU offload 0, four CPU threads, single concurrent request, Flash Attention on, model kept in memory. This is operational evidence of the local setup, not one of the deterministic analysis figures of Section 6.*
+
+> **Caveat on the benchmark sample.** The model comparison runs on a small set of representative synthetic routes (no NDA data), so the latency and faithfulness figures are indicative rather than population statistics. They are reproducible and shareable, which is what we need to justify a backend choice; they are not a claim about every possible route.
+
+#### 5.4.4 — Scaling to large perimeters
+
+Three mechanisms keep the narration cost bounded as the perimeter grows.
+
+* **Cache.** Each narration is stored under a perimeter-stable key — route, labels, top drivers and fired rules, never the raw model scores, which can drift between runs. Re-running the same perimeter is instant and costs nothing.
+* **`final_risk` gating.** Only the operationally critical tiers (CRITICAL and HIGH by default) are narrated by the model; the remaining anomalous routes receive a deterministic template carrying their own figures. The set of tiers is configurable.
+* **Adaptive pattern-dedup.** Above a configurable threshold of narrated routes, the agent groups routes by risk pattern — the business rules that fired plus the final-risk tier — and asks the model for one example per pattern, templating the rest. Below the threshold every narrated route keeps its own dedicated narration. The mode and the per-source counts are recorded in the report for transparency.
+
+On the full 567-route dataset a cold run with the local model narrates the 38 CRITICAL+HIGH routes as roughly 23 patterns in about six minutes; the deterministic stages and the templated routes are effectively free, and re-runs and narrower perimeters — the normal interactive use — are far faster. We keep that six-minute figure in plain sight on purpose: zero marginal cost is not free, it is paid in time. The same narration a metered cloud call returns in seconds takes minutes on a CPU server — the identical work, a different resource spent. For a system that runs on a schedule rather than keystroke-by-keystroke, spending time instead of money, and keeping the data in-house, is usually the trade worth making — but it is a trade, and we state it plainly rather than hide it. When a tighter budget *is* needed the same knobs move the balance back: a CRITICAL-only narration set, a smaller model, or a GPU backend each cut the cold full-dataset run substantially — the first two by reducing the number or cost of model calls, the last by lifting the per-call latency that dominates on CPU.
+
+The conclusion for the comparative brief follows directly. The narration is the one capability the multi-agent system has and the classical script does not, and it is also the one place the multi-agent system could spend money. Making the backend pluggable, the figures faithful by construction, and the volume bounded turns that capability into a defensible operational feature rather than a liability: Claude when quality and speed matter and the data may go to the cloud, a local model at zero marginal cost when it may not.
 
 ---
 
@@ -397,7 +457,7 @@ Three choices look like deviations from the brief but were the right call given 
 
 1. **Single dataset.** The entire evaluation runs on a single Reply-provided dataset. We have not stress-tested either pipeline on a different schema, although `DataAgent` carries an LLM schema-normalisation layer that has not had to fire on this dataset because the canonical columns are all present.
 2. **Three-month panel.** As discussed in §7, the temporal model we added is the most the panel can support; a longer panel would unlock STL and rolling means without changing the rest of the pipeline.
-3. **LLM narratives are not programmatically validated.** The `ReportAgent` prompt forbids hallucination and is reviewed in spot checks, but we do not prove zero hallucination automatically. The prompt instruments enough structured context (top-3 z-score drivers, fired rules, ensemble score) that gross hallucinations are easy to spot in review, but not impossible to miss.
+3. **LLM narratives are only partly validated.** The `ReportAgent` injects every figure into the prompt and a guardrail replaces any number the model emits that is absent from that context, so the *figures* a narration cites are faithful by construction (Section 5.4.2). The *qualitative* framing of the prose is still only spot-checked — we do not prove the narrative as a whole is free of misleading phrasing.
 4. **Autoencoder determinism — historical note.** An earlier iteration of the project relied on `MLPRegressor(..., early_stopping=True)`; the validation split was data-order-dependent and produced run-to-run variability on a handful of MEDIUM ↔ NORMAL boundary routes (about 1.8 % of the population). The current code routes both pipelines through `shared/autoencoder.py`, which sorts the input by route id, disables early stopping, and trains for a fixed `max_iter`. The AE is now fully deterministic — the residual ~10⁻⁵ Pearson gap is float-precision noise, not algorithmic instability.
 5. **No live data.** The Streamlit dashboard runs on the same processed CSVs as the analysis; there is no production ingestion pipeline.
 
@@ -423,7 +483,7 @@ A **multi-locale `ReportAgent`** would expose the narrative language as a runtim
 ├── main.ipynb                      Single-notebook tour of the project
 ├── Oral_presentation.pdf           Oral defence slides
 ├── requirements.txt
-├── .env.example                    ANTHROPIC_API_KEY template
+├── .env.example                    LLM backend + API-key template
 ├── images/                         All PNG figures + tables/ CSV summaries
 │   ├── *.png                       (generated by notebooks/08_report_assets.ipynb)
 │   └── tables/*.csv
@@ -435,7 +495,7 @@ A **multi-locale `ReportAgent`** would expose the narrative language as a runtim
 ├── multiagent_pipeline/            LangGraph library
 │   ├── main.py                     run_pipeline — graph orchestrator
 │   ├── state.py                    AgentState schema + shared constants
-│   ├── config.py                   API key + model config
+│   ├── config.py                   API keys + pluggable-LLM-backend config
 │   ├── agents/
 │   │   ├── data_agent.py
 │   │   ├── baseline_agent.py
@@ -449,7 +509,8 @@ A **multi-locale `ReportAgent`** would expose the narrative language as a runtim
 │   │   ├── threshold_sensitivity.py
 │   │   ├── trend_analysis.py
 │   │   ├── ensemble_ablation.py    Drop-one-detector study
-│   │   └── ensemble_grid_search.py Data-driven ensemble weight selection
+│   │   ├── ensemble_grid_search.py Data-driven ensemble weight selection
+│   │   └── llm_benchmark.py        LLM-backend benchmark (latency / faithfulness / cost)
 │   ├── tests/
 │   │   ├── test_risk_profiling_agent.py   # 13 unit tests
 │   │   └── e2e_validation.py
@@ -492,12 +553,16 @@ data/raw/
 
 ### 11.3 Optional LLM narratives
 
+The narration backend is selected by `LLM_BACKEND` in `.env` (see Section 5.4):
+
 ```bash
 cp .env.example .env
-# Edit .env and add: ANTHROPIC_API_KEY=sk-ant-...
+# Cloud Claude:  LLM_BACKEND=anthropic           + ANTHROPIC_API_KEY=sk-ant-...
+# Local, free:   LLM_BACKEND=openai_compatible    + LLM_BASE_URL=http://localhost:1234/v1
+# No LLM:        LLM_BACKEND=none
 ```
 
-Without a key, the report agent automatically falls back to a deterministic dry-run mode that emits template narratives and skips the API calls. All numerical results are unaffected.
+With `none` (or no key on the `anthropic` backend) the agent falls back to deterministic template narratives and skips every model call. All numerical results are unaffected: the narration layer sits downstream of detection and classification, so the convergence numbers in Section 6 do not depend on it.
 
 ### 11.4 End-to-end run
 
@@ -525,8 +590,9 @@ then `Run All`. The notebook is structured in **thirteen sections** that follow 
 
 End-to-end runtime on the 2024 perimeter (567 routes):
 
-* without the LLM → ~ 2 minutes
-* with the LLM    → ~ 7 minutes (Claude generates one narrative per HIGH/MEDIUM route, ~ 57 calls)
+* without the LLM (`none` backend) → ~ 2 minutes
+* with the **local** model, cold → ~ 6 minutes; pattern-dedup collapses the 38 CRITICAL+HIGH routes to ~ 23 narrated patterns, and re-runs are instant from cache.
+* with **cloud Claude** → faster per call. On either backend, narrower perimeters and cache hits are seconds, not minutes.
 
 ### 11.5 Unit tests
 
