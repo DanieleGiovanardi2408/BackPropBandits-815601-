@@ -1113,7 +1113,7 @@ def main() -> None:
                 os.environ["ANTHROPIC_API_KEY"] = _key
 
         llm_ready = (_backend != "anthropic") or bool(get_anthropic_api_key())
-        run_report = st.checkbox(f"Enable LLM Report ({_label})", value=llm_ready)
+        run_report = st.checkbox("Enable LLM Report", value=llm_ready)
         dry_run = st.checkbox(
             "Dry run report (no LLM calls)",
             value=not llm_ready,
@@ -1122,7 +1122,11 @@ def main() -> None:
         save_outputs      = st.checkbox("Save outputs to disk",        value=True)
         continue_on_error = st.checkbox("Continue if a stage fails",   value=False)
 
-        # ── Narration cache control ──────────────────────────────────────────
+        st.divider()
+        run = st.button("Run pipeline", use_container_width=True, type="primary")
+
+        # ── Narration cache control (secondary utility, kept at the bottom) ───
+        st.divider()
         _cache_path = PROJECT_ROOT / "data" / "processed" / "llm_report_cache.json"
         _n_cached = 0
         if _cache_path.exists():
@@ -1136,9 +1140,6 @@ def main() -> None:
                 st.success(f"Cleared {_n_cached} cached narrations — next run will be cold.")
             except Exception as e:  # noqa: BLE001
                 st.error(f"Could not clear cache: {e}")
-
-        st.divider()
-        run = st.button("Run pipeline", use_container_width=True, type="primary")
 
     # ── Pipeline execution ────────────────────────────────────────────────────
     if run:
