@@ -3,10 +3,10 @@
 Samples the 4-simplex on a step-``grid_step`` grid (weights summing to 1)
 and scores every weight vector by a combination of:
 
-* ``stability``     — bootstrap stability of the top-17 HIGH set over
+* ``stability``, bootstrap stability of the top-17 HIGH set over
                       ``n_boot`` resamples at 80 % subsample, scaled to
                       [0, 1].
-* ``br_rank_corr``  — Spearman correlation between the ensemble score and
+* ``br_rank_corr``, Spearman correlation between the ensemble score and
                       the per-route business-rule score, mapped to [0, 1]
                       via ``(rho + 1) / 2``.
 
@@ -58,7 +58,7 @@ def _simplex_grid(step: float) -> list[tuple[float, float, float, float]]:
                 if d < 0:
                     continue
                 pts.append((a * step, b * step, c * step, d * step))
-    # Filter out points that exclude a detector entirely — the production
+    # Filter out points that exclude a detector entirely, the production
     # ensemble must use all four (we already cover drop-one studies in the
     # ablation module).
     return [p for p in pts if all(w > 0 for w in p)]

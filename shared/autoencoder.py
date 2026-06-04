@@ -4,7 +4,7 @@ Single source of truth for the AE component of the ensemble. The classical
 pipeline (`classical_pipeline.main.step_anomaly_detection`) and the
 multi-agent pipeline (`OutlierAgent`) both call ``train_and_score`` so the
 AE reconstruction-error scores are *identical by construction* between the
-two pipelines — eliminating the ~1.8 % residual disagreement that the
+two pipelines, eliminating the ~1.8 % residual disagreement that the
 stochastic AE used to introduce on borderline MEDIUM/NORMAL routes.
 
 Determinism guarantees:
@@ -18,7 +18,7 @@ Determinism guarantees:
 
 If the input has fewer than ``min_samples`` "normal" rows (as identified by
 an upstream IsolationForest mask), the AE is excluded and zero-scores are
-returned along with ``use_ae=False`` — both pipelines then redistribute the
+returned along with ``use_ae=False``, both pipelines then redistribute the
 AE weight proportionally over the remaining detectors.
 """
 from __future__ import annotations
@@ -67,7 +67,7 @@ def train_and_score(
     Parameters
     ----------
     X_scaled : (n_rows, n_features) feature matrix already standard-scaled.
-    normal_mask : (n_rows,) boolean — True for routes treated as normal
+    normal_mask : (n_rows,) boolean, True for routes treated as normal
         (typically produced by an upstream IsolationForest at the same
         contamination as the pipeline).
     row_ids : (n_rows,) array of route ids (e.g. the ``ROTTA`` column).
@@ -82,7 +82,7 @@ def train_and_score(
     X_arr = np.asarray(X_scaled, dtype=float)
     n_total = X_arr.shape[0]
 
-    # Deterministic ordering — both pipelines must see the same row sequence.
+    # Deterministic ordering, both pipelines must see the same row sequence.
     if row_ids is not None:
         ids = np.asarray(row_ids)
         order = np.argsort(ids, kind="stable")
@@ -112,7 +112,7 @@ def train_and_score(
             sorted_index=None,
         )
 
-    # ── Fit the AE — deterministic configuration ─────────────────────────────
+    # ── Fit the AE, deterministic configuration ─────────────────────────────
     # ``early_stopping=False`` (the historical default was True) so the
     # convergence point is fully determined by (data, random_state).
     # The historical AE used early stopping which produced run-to-run
@@ -145,7 +145,7 @@ def train_and_score(
     score_ae = score_sorted[inverse]
 
     logger.info(
-        "Autoencoder ✓ Trained on %d normal routes / %d total — score_ae range [%.4f, %.4f]",
+        "Autoencoder ✓ Trained on %d normal routes / %d total, score_ae range [%.4f, %.4f]",
         n_normal, n_total, float(score_ae.min()), float(score_ae.max()),
     )
 

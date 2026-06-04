@@ -5,12 +5,12 @@ weights proportionally renormalised, and measures how the verdict changes.
 For each subset we report:
 
 * ``n_high`` / ``n_medium`` / ``n_normal``
-* ``top17_overlap``  — share of the original top-17 HIGH set that the
+* ``top17_overlap``, share of the original top-17 HIGH set that the
                        reduced ensemble still classifies as HIGH
-* ``br_rank_corr``   — Spearman correlation between the ensemble score
+* ``br_rank_corr``, Spearman correlation between the ensemble score
                        and the business-rule score (proxy for how
                        operationally aligned the ensemble is)
-* ``stability_top17``— bootstrap stability of the top-17 HIGH set across
+* ``stability_top17``,  bootstrap stability of the top-17 HIGH set across
                        ``n_boot`` resamples at 80 % subsample
 
 The full ensemble (IF + LOF + Z + AE) is also evaluated as the baseline.
