@@ -620,6 +620,12 @@ def run_classical_pipeline(*, skip_eval: bool = False, verbose: bool = False) ->
         logger.error("Preprocessing failed: %s", e)
         return summary
 
+    # Perimeter: restrict to the 2024 analysis year (matches the multi-agent
+    # DataAgent anno=2024) so both pipelines aggregate the identical record set;
+    # this excludes the 4 records dated 31 December 2023.
+    df_allarmi = df_allarmi[df_allarmi["ANNO_PARTENZA"] == 2024].copy()
+    df_viaggiatori = df_viaggiatori[df_viaggiatori["ANNO_PARTENZA"] == 2024].copy()
+
     # ── Step 1: Feature Engineering ───────────────────────────────────────────
     t1 = time.perf_counter()
     try:

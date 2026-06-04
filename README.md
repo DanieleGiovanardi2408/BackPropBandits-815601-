@@ -14,11 +14,9 @@ Team: Daniele Giovanardi · Filippo Nannucci · Edoardo Riva
 5. [Multi-agent architecture](#5-multi-agent-architecture)
 6. [Results](#6-results)
 7. [Design rationale](#7-design-rationale)
-8. [Limitations](#8-limitations)
-9. [Future work](#9-future-work)
-10. [Repository structure](#10-repository-structure)
-11. [How to reproduce](#11-how-to-reproduce)
-12. [Reproducibility note on figures and tables](#12-reproducibility-note-on-figures-and-tables)
+8. [Repository structure](#8-repository-structure)
+9. [How to reproduce](#9-how-to-reproduce)
+10. [Reproducibility note on figures and tables](#10-reproducibility-note-on-figures-and-tables)
 
 ---
 
@@ -35,17 +33,17 @@ The main numbers, all reproduced by `notebooks/08_report_assets.ipynb` from the 
 | Final-risk distribution (both pipelines) | **9 CRITICAL / 29 HIGH / 19 MEDIUM / 510 LOW** |
 | Per-route label agreement (`anomaly_label`) | **100.00 %** (567 / 567) |
 | Per-route label agreement (`final_risk`)    | **100.00 %** (567 / 567) |
-| Pearson r on the final scalar score | **0.9999** (float-precision noise from numpy vs pandas reduction order) |
-| Spearman ρ on the final scalar score | **0.9999** |
+| Pearson r on the final scalar score | **≈ 1.0** (float rounding only, see §6.4) |
+| Spearman ρ on the final scalar score | **≈ 1.0** |
 | Business-rule hits (all 5 rules) | **Identical, delta = 0** (r = 1.000 by construction) |
-| Top-50 anomalous routes overlap | **49 / 50** |
+| Top-50 anomalous routes overlap | **50 / 50** |
 | Top-10 anomalous routes overlap | **10 / 10** |
-| Ensemble weight choice | **Data-driven**, winner of a 4-simplex grid search (Section 4.4.1) |
+| Ensemble weight choice | **Data-driven** (ablation + 4-simplex grid search, Section 4.4.1) |
 | Threshold-sensitivity max swing on CRITICAL + HIGH (±10 %) | **2.6 %** (1 route) |
 
-The two architectures produce identical anomaly and final-risk labels on all 567 routes. The residual Pearson r = 0.9999 on the continuous scalar score reflects float-precision differences in reduction order between numpy (classical) and pandas (multi-agent) reductions, not algorithmic divergence. What the multi-agent design adds over the sequential script is operational rather than statistical: an LLM-narrated explanation per HIGH/MEDIUM route, dynamic perimeter filtering at runtime, per-agent failure isolation, and a bounded feedback cycle when the verifier disagrees with the first pass. The classical script does not provide these properties without significant refactoring.
+The two architectures produce identical anomaly and final-risk labels on all 567 routes. Both pipelines apply the same `anno = 2024` perimeter and aggregate the identical record set, so all four detectors and the blended score are identical up to CSV float rounding (Pearson r ≈ 1.0). That rounding is far too small to move any label or reorder the top routes. What the multi-agent design adds over the sequential script is operational rather than statistical: an LLM-narrated explanation per HIGH/MEDIUM route, dynamic perimeter filtering at runtime, per-agent failure isolation, and a bounded feedback cycle when the verifier disagrees with the first pass. The classical script does not provide these properties without significant refactoring.
 
-The 100 % label agreement is a property of the code, not a coincidence. The Autoencoder, historically the only stochastic component of the ensemble, is now trained by a single shared module (`shared/autoencoder.py`) called by both pipelines with the rows sorted by route id and `early_stopping=False`. Combined with the already-deterministic IF, LOF, and Z components, and with the business rules now applying the same thresholds on both sides, the end-to-end output of the two pipelines is identical.
+The 100 % label agreement is a property of the code, not a coincidence. The Autoencoder, historically the only stochastic component of the ensemble, is now deterministic: both pipelines train it through the shared `shared/autoencoder.py` module (details in §4.4). With that source of run-to-run noise removed and the business rules applying the same thresholds on both sides, the two pipelines produce identical labels.
 
 ---
 
@@ -53,16 +51,16 @@ The 100 % label agreement is a property of the code, not a coincidence. The Auto
 
 ### 2.1 The brief
 
-Reply assigned the **NoiPA validation use case** as the framing for Project 2 of the *Backpropagation Bandits* LUISS course. NoiPA is the digital platform of the Italian Ministry of Economy and Finance (MEF) that ingests heterogeneous datasets from third-party authorities and validates them automatically. The deliverable asks for an anomaly-detection system that could be plugged into NoiPA, accepting heterogeneous tabular records, producing a route-level risk classification and a human-readable explanation per HIGH/MEDIUM route, and surfacing the results to an analyst.
+Reply assigned an automated **dataset-validation use case** as the framing for Project 2 of the *Backpropagation Bandits* LUISS course. The scenario is a digital platform of the Italian Ministry of Economy and Finance (MEF) that ingests heterogeneous datasets from third-party authorities and validates them automatically. The deliverable asks for an anomaly-detection system that could be plugged into such a platform, accepting heterogeneous tabular records, producing a route-level risk classification and a human-readable explanation per HIGH/MEDIUM route, and surfacing the results to an analyst.
 
-The dataset Reply provided is **not** NoiPA itself: it is a sample of border-control passenger transits at Italian airports, used as an example of the kind of heterogeneous third-party dataset NoiPA would receive. The 567 origin/destination route pairs are the unit of analysis a customs officer would work with operationally.
+The dataset Reply provided is **not** the platform's own data: it is a sample of border-control passenger transits at Italian airports, used as an example of the kind of heterogeneous third-party dataset such a platform would receive. The 567 origin/destination route pairs are the unit of analysis a customs officer would work with operationally.
 
 ### 2.2 What we built
 
 Two implementations of the same detection logic, sharing the same preprocessing module, the same `FeatureBuilder` (54 numerical features per route), the same MAD-based baseline, the same four-model ensemble, the same five business rules and the same ensemble weights:
 
 1. **Classical pipeline.** Seven sequential steps: EDA, preprocessing, feature engineering, baseline, ensemble, post-processing, evaluation. Inlined in `main.ipynb` so a reviewer can read it top-to-bottom without leaving the notebook. A standalone `classical_pipeline/main.py` orchestrator is also available for batch runs.
-2. **Multi-agent pipeline.** A LangGraph DAG with five specialised agents (`DataAgent`, `BaselineAgent`, `OutlierAgent`, `RiskProfilingAgent`, `ReportAgent`) plus a `SupervisorAgent` verifier wired into the graph as a conditional branch with a bounded feedback cycle. Lives in `multiagent_pipeline/` and is imported by Sections 8 to 13 of `main.ipynb`.
+2. **Multi-agent pipeline.** A LangGraph DAG with five specialised agents (`DataAgent`, `BaselineAgent`, `OutlierAgent`, `RiskProfilingAgent`, `ReportAgent`) plus a `SupervisorAgent` verifier wired into the graph as a conditional branch with a bounded feedback cycle. Lives in `multiagent_pipeline/` and is imported by Sections 8 to 12 of `main.ipynb`.
 
 ### 2.3 Alignment guarantee
 
@@ -83,7 +81,7 @@ Reply provides two CSV files at the bottom of `data/raw/` (NDA-protected, **not*
 
 ### 3.2 Temporal coverage
 
-The panel spans **three months only**: December 2023, January 2024, and February 2024 (plus one off-cycle record with `MESE_PARTENZA = 12` that the cleaner treats as December 2024). This is the most consequential constraint on the methodology. It rules out STL-style decomposition, which needs at least 12 observations per series, and forces us to fall back on cross-sectional robust statistics.
+The raw data covers two full months, January and February 2024, plus a 4-record tail dated 31 December 2023. The analysis perimeter is the 2024 year (`anno = 2024`), applied to both pipelines, so they aggregate the identical record set and the December tail is excluded. Either way the panel is far too short for STL-style decomposition, which needs at least 12 observations per series, so we fall back on cross-sectional robust statistics.
 
 ### 3.3 Geographic coverage
 
@@ -91,7 +89,7 @@ Routes terminate or originate at Italian airports (FCO, MXP, LIN, BLQ, NAP, and 
 
 ### 3.4 Unit of analysis
 
-After cleaning and aggregating monthly, the unit of analysis is a **route**, that is an `airport_departure -> airport_arrival` pair (e.g. `CMN-FCO` for Casablanca to Rome Fiumicino). The cleaned panel contains **567 unique routes**, each described by **54 numerical features**. The full feature roster is documented in `data/processed/feature_cols.json`. The thirteen features used as inputs to the baseline are reported in §4.3 below.
+After cleaning and aggregating monthly, the unit of analysis is a **route**, that is an `airport_departure -> airport_arrival` pair (e.g. `CMN-FCO` for Casablanca to Rome Fiumicino). The cleaned panel contains **567 unique routes**, each described by **54 numerical columns**: the 53 input features documented in `data/processed/feature_cols.json`, plus the derived composite `score_composito` (used as the surrogate target in §6.8). The thirteen features used as inputs to the baseline are reported in §4.3 below.
 
 ---
 
@@ -103,15 +101,15 @@ The methodology splits naturally into six layers, identical on both pipelines an
 
 `shared/preprocessing.py` performs cleaning and merging in one pass:
 
-* **Date parsing.** `DATA_PARTENZA` is normalised to UTC; rows with unparseable timestamps are dropped.
+* **Date parsing.** `DATA_PARTENZA` is parsed by a routine that maps Italian month names (`GEN`…`DIC`) to English, tries seven explicit formats and falls back to a `dayfirst` parse; values that still fail to parse become `NaT`.
 * **Country-code normalisation.** ISO-2 codes are mapped to ISO-3 via an embedded lookup table; departure-country labels are stripped of stray casing and whitespace.
-* **Gender normalisation.** The raw `GENERE` field carries inconsistent encodings (`M`, `m`, `M.`, `Maschio`); all are collapsed to `M` / `F` / `OTHER`.
-* **Sparse-column drop.** Columns with more than 95 % nulls are dropped before the route-level merge.
-* **Route-level merge.** Alarms and traveller records are aggregated on `(AREOPORTO_PARTENZA, AREOPORTO_ARRIVO)`. The resulting `dataset_merged.csv` is the input of every downstream layer.
+* **Gender normalisation.** The raw `GENERE` field carries inconsistent encodings (`M`, `m`, `M.`, `Maschio`); recognised values collapse to `M` / `F`, while ambiguous codes (e.g. `1` / `2`) are set to `NaN` rather than guessed.
+* **Sparse-column drop.** Columns with more than 50 % nulls (`NULL_DROP_THRESHOLD = 0.50`) are dropped before the route-level merge.
+* **Route-and-date merge.** Traveller records are aggregated by `(AREOPORTO_ARRIVO, AREOPORTO_PARTENZA, departure date)` and left-joined onto the alarm records on those three keys, keeping every alarm row. The result, `dataset_merged.csv`, is at the alarm grain (one row per alarm record, about 5,080 rows), not yet route-level; the aggregation to the 567 routes happens in feature engineering (§4.2).
 
 ### 4.2 Feature engineering
 
-`multiagent_pipeline/src/features.py` builds **54 numerical features per route**. They fall into four families:
+`multiagent_pipeline/src/features.py` builds **54 numerical features per route**. The route set comes from an outer join on `ROTTA` of the alarm aggregator (368 routes) and the traveller aggregator (467 routes), so their union is **567 routes** (268 present in both, 100 alarm-only, 199 traveller-only). The features fall into four families:
 
 | Family | Examples | Purpose |
 |---|---|---|
@@ -122,23 +120,28 @@ The methodology splits naturally into six layers, identical on both pipelines an
 
 ### 4.3 Robust baseline
 
-`BaselineAgent` (and the equivalent classical step) computes a robust z-score per feature using the **Median Absolute Deviation (MAD)**:
+`BaselineAgent` (and the equivalent classical step) turns each of 13 input features into a per-route deviation score and averages them. Per feature it uses a robust z-score built on the median and the **Median Absolute Deviation (MAD)**:
 
 ```
-z_i = (x_i − median(X)) / (1.4826 · MAD(X))
+mad = median(|x - median(x)|)
+z   = (x - median(x)) / (1.4826 * mad)     if mad > 0
+z   = (x - median(x)) / std(x)             if mad == 0 but std > 0   (sparse-feature fallback)
+z   = 0                                     if the column is constant
 ```
 
-with a fallback to the standard deviation when MAD = 0. The MAD = 0 case occurs on sparse features where more than half of the routes share the same value (typically zero on the percentage and rate columns); without the fallback those features would silently produce zero z-scores. The scaling factor 1.4826 makes the MAD a consistent estimator of σ under a normal model.
+The factor **1.4826** (= 1 / 0.6745) rescales the MAD so it estimates the standard deviation sigma under a normal model: for a normal distribution MAD is about 0.6745 * sigma, so multiplying by 1.4826 brings the MAD-based z onto the same scale as an ordinary z-score.
 
-The 13 features that participate in the baseline are:
+A feature's MAD is exactly 0 whenever at least half of its routes carry the same value (a property of the median). On this dataset that holds for **12 of the 13** features, which are sparse (most routes sit at the same baseline value, usually 0), so the std fallback applies to them; the MAD is non-zero only for `tot_allarmi_log`, the single dense volume feature. The fallback still flags routes whose value sits far above the bulk, which is what the baseline needs, and using MAD where it is defined and std otherwise avoids an extra configuration knob.
+
+The 13 baseline features are:
 
 `tot_allarmi_log`, `pct_interpol`, `pct_sdi`, `pct_nsis`, `tasso_chiusura`, `tasso_rilevanza`, `tasso_allarme_medio`, `tasso_inv_medio`, `score_rischio_esiti`, `tasso_respinti`, `tasso_fermati`, `false_positive_rate`, `alarm_per_invest`.
 
-The composite `baseline_score` is the mean of the absolute z-scores across the 13 features. In practice the MAD is non-degenerate only on `tot_allarmi_log` (a non-sparse volume feature); on the 12 rate and composition features the median is zero and the fallback to std applies. The hybrid (MAD when defined, std otherwise) handles both cases without an additional configuration knob.
+The composite `baseline_score` is the mean of the absolute z-scores across these 13 features. It enters the ensemble as the Z-score component (§4.4).
 
 ### 4.4 Ensemble anomaly detection
 
-`OutlierAgent` (and the equivalent classical step) trains four independent detectors on the 13-feature matrix, normalises each output to [0, 1], and blends them into a single `ensemble_score`. The four weights below are **data-driven**: they are the winner of a grid search over the 4-simplex (§4.4.1) and supersede the original principled defaults that we initially borrowed from the literature.
+`OutlierAgent` (and the equivalent classical step) trains four independent detectors on the 13-feature matrix, normalises each output to [0, 1], and blends them into a single `ensemble_score`. The four weights below are **data-driven**: they were chosen from the ablation study (§4.4.1), which assigns each detector an explicit role, and validated against a grid search over the 4-simplex; they supersede the original literature defaults (0.35 / 0.30 / 0.15 / 0.20).
 
 | Detector | Weight | Hyper-parameters | Implementation |
 |---|---|---|---|
@@ -161,13 +164,13 @@ We validate the choice of weights with two complementary analyses, both implemen
 | LOF only        | 0.000 | 0.200 |
 | Z only          | 0.471 | 0.587 |
 | AE only         | 0.471 | 0.356 |
-| IF + LOF + Z    | 0.824 | 0.579 |
-| IF + LOF + AE   | 0.824 | 0.520 |
+| IF + LOF + Z    | 0.824 | 0.577 |
+| IF + LOF + AE   | 0.824 | 0.513 |
 | IF + Z + AE     | **1.000** | **0.558** |
-| LOF + Z + AE    | 0.706 | 0.500 |
-| IF + LOF + Z + AE (full) | 1.000 | 0.550 |
+| LOF + Z + AE    | 0.706 | 0.494 |
+| IF + LOF + Z + AE (full) | 1.000 | 0.549 |
 
-Two observations from the table. First, **dropping LOF leaves the top-17 unchanged** and slightly improves the rank correlation with `br_score` (0.558 vs 0.550 for the full ensemble): LOF contributes mostly redundancy with the IF density signal, which is the empirical justification for cutting its weight from 0.30 to 0.15. Second, dropping AE pushes the top-17 overlap down to 0.824 and the BR rank correlation to 0.520: the AE captures non-linear feature combinations that the other three detectors do not, so it stays in the blend at a reduced weight.
+Two observations from the table. First, **dropping LOF leaves the top-17 unchanged** and slightly improves the rank correlation with `br_score` (0.558 vs 0.549 for the full ensemble): LOF contributes mostly redundancy with the IF density signal, which is the empirical justification for cutting its weight from 0.30 to 0.15. Second, **dropping AE pushes the top-17 overlap down to 0.824** (three routes leave the HIGH set) while the BR rank correlation does not fall (0.577, versus 0.549 for the full ensemble): the rule-aligned detectors carry that signal. The AE's contribution is therefore to the ML side of the verdict — which routes are anomalous — not to rule alignment. It captures non-linear feature combinations the other three detectors miss, so it stays in the blend at a reduced weight.
 
 ![Ensemble ablation](images/ensemble_ablation.png)
 
@@ -176,24 +179,26 @@ Two observations from the table. First, **dropping LOF leaves the top-17 unchang
 **Grid search** (`ensemble_grid_search.py`). We enumerate the 4-simplex of weight vectors at step 0.05 (all four weights strictly positive, summing to one, around 969 vectors) and score every vector by
 
 ```
-objective = 0.5 · bootstrap_stability(top-17, 80% subsample) + 0.5 · ((BR_rank_corr + 1) / 2)
+objective = 0.5 · bootstrap_stability(top-17, 80% subsample, 200 resamples) + 0.5 · ((BR_rank_corr + 1) / 2)
 ```
 
 The objective rewards weight vectors whose top-17 HIGH set survives bootstrap resampling and whose ensemble score rank-correlates with the business-rule score. The two halves act as a sanity check on each other: stability alone would favour degenerate weightings, rule correlation alone would mirror the rules at the expense of the ML signal.
 
-| Weight vector | IF | LOF | Z | AE | Stability | BR rank corr | Objective |
-|---|---|---|---|---|---|---|---|
-| Initial literature defaults | 0.35 | 0.30 | 0.15 | 0.20 | 0.797 | 0.499 | 0.773 |
-| **Grid-search winner (current production)** | **0.40** | **0.15** | **0.30** | **0.15** | **0.833** | **0.550** | **0.804** |
-| Gap | +0.05 | −0.15 | +0.15 | −0.05 | +0.036 | +0.051 | **+0.031 (+4.0 %)** |
+We read the grid as a **robustness check, not an optimiser that crowns a winner**: in an unsupervised setting there is no ground truth to declare one weight vector uniquely correct. Two facts make this concrete. First, the objective surface is a flat plateau — across all 969 vectors it spans only 0.739–0.804 (median 0.776). Second, the `stability` half is almost constant over the whole simplex (0.776–0.824), so the only real gradient is the BR-correlation half, which is partly circular (the Z detector shares its 13 features with the business rules, see the caveat). The unconstrained argmax reflects this: it lands on a near-degenerate vector (here IF 0.60 / Z 0.20 / AE 0.05) and *moves across the simplex when the bootstrap is reseeded*, so it is not a stable target.
 
-The grid result agrees with the ablation. IF stays the heaviest weight (+0.05); LOF is halved (−0.15) for the redundancy reason above; Z is doubled (+0.15) because it has the highest individual BR rank correlation; AE is trimmed (−0.05) but retained for non-linear coverage.
+| Weight vector | IF | LOF | Z | AE | Stability | BR rank corr | Objective | Rank |
+|---|---|---|---|---|---|---|---|---|
+| Initial literature defaults | 0.35 | 0.30 | 0.15 | 0.20 | 0.797 | 0.491 | 0.771 | 610 / 969 |
+| **Production (ablation-chosen)** | **0.40** | **0.15** | **0.30** | **0.15** | **0.808** | **0.549** | **0.791** | **73 / 969** |
+| Plateau, all 969 vectors | — | — | — | — | 0.776–0.824 | — | 0.739–0.804 | — |
+
+The grid still confirms the ablation. Moving from the naive literature defaults to the production weights — cut LOF (−0.15, the redundant detector), raise Z (+0.15, the most rule-aligned detector) — lifts the BR rank correlation from 0.491 to 0.549 and the objective from 0.771 to 0.791, pushing the weights from the bottom third of the simplex (rank 610) into the **top ~8 % (rank 73), 1.6 % below the global maximum**. We deliberately stop there rather than chase the argmax: on a plateau whose only gradient is a partly-circular term, optimising harder would just mirror the rules. In any case the choice barely matters operationally: the production weights and the unconstrained argmax agree on **16 of the 17 HIGH routes**, and even the naive literature defaults agree on 15 of 17. IF stays the heaviest weight, LOF is halved for the redundancy reason above, Z is doubled because it has the highest individual BR rank correlation, and AE is trimmed but retained for non-linear coverage.
 
 ![Grid search heatmap](images/ensemble_grid_search_heatmap.png)
 
-*Figure 2. Marginal heatmap of the grid-search objective over (w_IF, w_Z), max over w_LOF and w_AE. The black star marks the current production weights (the grid-search winner). The objective surface is smooth around the winner: small perturbations of the weights do not change the verdict, which is the relevant robustness check.*
+*Figure 2. Marginal heatmap of the grid-search objective over (w_IF, w_Z), max over w_LOF and w_AE. The surface is a flat plateau (objective 0.74–0.80 across all 969 vectors). The star marks the production weights (ablation-chosen); the cross marks the unconstrained argmax, which drifts across the simplex when the bootstrap is reseeded — which is why we treat the grid as a robustness check rather than a way to crown a single optimum.*
 
-**Caveat.** The Z component uses MAD z-scores of the same 13 features that the business rules read, so a high `Z ↔ br_score` correlation is partly mechanical. We chose this objective deliberately, since operational alignment is part of what the brief asks for, but we do not claim the grid optimum is uniquely correct. It is the best weight vector under a stated, reproducible objective, which is the most we can claim in an unsupervised setting.
+**Caveat.** The Z component uses MAD z-scores of the same 13 features that the business rules read, so a high `Z ↔ br_score` correlation is partly mechanical. We chose this objective deliberately, since operational alignment is part of what the brief asks for, but — as the plateau above shows — we do not claim a uniquely correct optimum. The most we claim in an unsupervised setting is that the production weights are interpretable, justified by the ablation, and demonstrably near the top of a flat objective surface.
 
 The 567 routes split into three buckets at **data-driven thresholds**: the p97 of the ensemble score is the boundary between HIGH and MEDIUM, the p90 between MEDIUM and NORMAL.
 
@@ -338,7 +343,7 @@ The conclusion for the brief follows. The narration is the one capability the mu
 
 ## 6. Results
 
-This section reproduces every claim in the executive summary and adds the residual diagnostics that justify it. Every figure and every table is generated deterministically from the canonical processed CSVs by `notebooks/08_report_assets.ipynb` (see §12 for the asset-reproducibility note).
+This section reproduces every claim in the executive summary and adds the residual diagnostics that justify it. Every figure and every table is generated deterministically from the canonical processed CSVs by `notebooks/08_report_assets.ipynb` (see §10 for the asset-reproducibility note).
 
 ### 6.1 Distribution convergence
 
@@ -371,7 +376,7 @@ The two pipelines agree on **567 of 567 anomaly labels (100.00 %)** and on **567
 
 ### 6.4 Score correlation
 
-The Pearson correlation between the two pipelines' final scalar scores is 0.9999 (more precisely 0.999987). The Spearman rank correlation is 0.9999 (0.999974). The residual gap below 1.0000 is float-precision noise from reduction order: the classical pipeline accumulates the weighted sum on numpy arrays, the multi-agent on pandas Series, and the two paths iterate memory in marginally different orders. The label assigned to each route does not depend on the difference.
+The Pearson correlation between the two pipelines' final scalar scores is ≈ 1.0, and the Spearman rank correlation is likewise ≈ 1.0. Both pipelines apply the same `anno = 2024` perimeter, so they aggregate the identical record set and feed identical feature matrices to the four detectors; the per-route scores then match up to CSV float rounding (about 5×10⁻⁵ on the saved score). That residual never crosses a label threshold and does not reorder the top routes (top-10 and top-50 coincide exactly), so no route's classification or rank depends on it.
 
 ![Score correlation](images/score_correlation_classical_vs_multiagent.png)
 
@@ -388,19 +393,19 @@ To check the agreement against finite-sample uncertainty we resample the merged 
 * **Pre-fix** (with the historical stochastic Autoencoder): point estimate 98.24 %, bootstrap mean 98.25 %, 95 % CI [97.79 %, 98.90 %]. Even in the worst-case 80 % subsample the agreement stays above 97.8 %.
 * **Post-fix** (after the deterministic AE alignment of §4.4): every resample produces 100 %, so the bootstrap distribution is concentrated on a single point and the 95 % CI is [100 %, 100 %].
 
-The pre-fix CI is the substantive number: it shows the convergence claim is not a small-sample artefact. The post-fix CI follows directly from the AE refactor and contains no additional information. Numerical values are in `images/tables/bootstrap_ci_agreement.csv`.
+The pre-fix CI is the substantive number: it shows the convergence claim is not a small-sample artefact. The post-fix CI follows directly from the AE refactor and contains no additional information. The post-fix regime is the one stored in `images/tables/bootstrap_ci_agreement.csv`; the pre-fix figures above come from the historical pre-alignment run, kept here for context and not regenerated by the current deterministic pipeline.
 
 ### 6.7 Threshold sensitivity
 
-We perturb each of the five BR thresholds independently by ±5 % and ±10 % and recompute the final-risk count. The dataset is structurally robust: only three thresholds (`high_alarm_rate`, `high_rejection_rate`, `multi_source_pct`) move the count of CRITICAL + HIGH routes at all, and at most by a single route (2.6 % swing relative to the 38-route baseline). The two remaining thresholds (`low_closure_rate`, `low_closure_volume`) do not move the count under any of the perturbations tested. The full per-cell table is in `images/tables/threshold_sensitivity_long.csv` and the per-threshold summary in `images/tables/threshold_sensitivity_summary.csv`.
+We perturb each of the six BR thresholds (the five rules, with `low_closure` split into a volume and a rate threshold) independently by ±5 % and ±10 % and recompute the final-risk count. The dataset is structurally robust: only three thresholds (`high_alarm_rate`, `high_rejection_rate`, `multi_source_pct`) move the count of CRITICAL + HIGH routes at all, and at most by a single route (2.6 % swing relative to the 38-route baseline). The three remaining thresholds (`high_interpol_pct`, `low_closure_rate`, `low_closure_volume`) do not move the count under any of the perturbations tested. The full per-cell table is in `images/tables/threshold_sensitivity_long.csv` and the per-threshold summary in `images/tables/threshold_sensitivity_summary.csv`.
 
 ### 6.8 Feature importance
 
-A surrogate Gradient Boosting classifier trained to predict the ensemble flag from the 13 baseline features surfaces the drivers a customs operator would expect to see at the top: total alarm volume, average alarm rate, and the score on the outcome side (`score_rischio_esiti`).
+A surrogate Gradient Boosting classifier trained to predict the ensemble flag from 11 of the input features gives an interpretability hint. Its mean-SHAP ranking (right panel) surfaces the drivers a customs operator would expect at the top: total alarm volume (`tot_allarmi_log`), the outcome-side score (`score_rischio_esiti`), and the average alarm rate (`tasso_allarme_medio`). The surrogate's own split-importance (left panel) instead ranks `tasso_respinti` (rejection rate) first, with `score_rischio_esiti` and `tasso_allarme_medio` close behind — the two views weight features differently, which is why we read this only as a hint.
 
 ![Feature importance and SHAP](images/feature_importance_shap.png)
 
-*Figure 8. Surrogate feature importance (left) and mean SHAP value (right), top 10 features. The SHAP values are computed against the surrogate model and serve as an interpretability hint, not as a faithful explanation of the ensemble itself.*
+*Figure 8. Surrogate feature importance (left) and mean SHAP value (right), top 10 of the 11 features. The SHAP values are computed against the surrogate model and serve as an interpretability hint, not as a faithful explanation of the ensemble itself.*
 
 ---
 
@@ -408,7 +413,7 @@ A surrogate Gradient Boosting classifier trained to predict the ensemble flag fr
 
 Three places where we departed from the literal text of the brief, with the reasoning made explicit.
 
-**STL vs robust z-scores.** The brief mentions a *"historical baseline using rolling averages and seasonal decomposition"*. STL needs at least 12 observations per series; our panel has three months, so STL is not applicable. A 3-month rolling mean is equivalent to the cross-sectional mean we already compute. We use robust z-scores against the population distribution, which is the standard alternative for short panels.
+**STL vs robust z-scores.** The brief mentions a *"historical baseline using rolling averages and seasonal decomposition"*. STL needs at least 12 observations per series; our panel has at most two months, so STL is not applicable. A short rolling mean is equivalent to the cross-sectional mean we already compute. We use robust z-scores against the population distribution, which is the standard alternative for short panels.
 
 **Four-model ensemble.** The brief lists *"IsolationForest, LOF or Z-score"*. We use all three plus an Autoencoder at weight 0.15. The Autoencoder captures non-linear feature combinations that the density-based detectors do not, and the ensemble degrades gracefully when the perimeter is small: below 30 normal samples the AE is excluded and its weight is redistributed proportionally over the other three.
 
@@ -416,27 +421,7 @@ Three places where we departed from the literal text of the brief, with the reas
 
 ---
 
-## 8. Limitations
-
-1. **Single dataset.** The entire evaluation runs on a single Reply-provided dataset. We have not stress-tested either pipeline on a different schema, although `DataAgent` carries an LLM schema-normalisation layer that has not had to fire on this dataset because the canonical columns are all present.
-2. **Three-month panel.** The dataset spans only December 2023 to February 2024. A longer panel would unlock STL and rolling means without changing the rest of the pipeline.
-3. **LLM narratives are only partly validated.** The `ReportAgent` injects every figure into the prompt and a guardrail replaces any number the model emits that is absent from that context, so the figures a narration cites are faithful by construction (§5.4.2). The qualitative framing of the prose is still only spot-checked; we do not prove the narrative as a whole is free of misleading phrasing.
-4. **Autoencoder determinism (historical note).** An earlier iteration of the project relied on `MLPRegressor(..., early_stopping=True)`. The validation split was data-order-dependent and produced run-to-run variability on a handful of MEDIUM/NORMAL boundary routes (about 1.8 % of the population). The current code routes both pipelines through `shared/autoencoder.py`, which sorts the input by route id, disables early stopping, and trains for a fixed `max_iter`. The AE output is now deterministic; the residual ~10⁻⁵ Pearson gap is float-precision noise from reduction order.
-5. **No live data.** The Streamlit dashboard runs on the same processed CSVs as the analysis; there is no production ingestion pipeline.
-
----
-
-## 9. Future work
-
-A `TrendAgent` as an optional sixth node would unlock STL or rolling baselines once the panel covers more than 12 months. The graph already supports optional-agent wiring (see how `ReportAgent` is added conditionally).
-
-The supervisor-to-outlier feedback cycle currently triggers only on first-pass HIGH disagreement. Extending it to MEDIUM borderline routes would tighten the boundary classification.
-
-A multi-locale `ReportAgent` would expose the narrative language as a runtime parameter, so an Italian-speaking operator gets Italian narratives without modifying the prompt. The current prompt is English-only; the change is small in code but enlarges the test surface.
-
----
-
-## 10. Repository structure
+## 8. Repository structure
 
 ```
 .
@@ -453,6 +438,8 @@ A multi-locale `ReportAgent` would expose the narrative language as a runtime pa
 ├── shared/
 │   ├── preprocessing.py            Cleaning + merge layer used by both pipelines
 │   └── autoencoder.py              Deterministic AE, single source of truth
+├── classical_pipeline/
+│   └── main.py                     Sequential orchestrator, batch run of the classical pipeline
 ├── multiagent_pipeline/            LangGraph library
 │   ├── main.py                     run_pipeline, graph orchestrator
 │   ├── state.py                    AgentState schema + shared constants
@@ -476,23 +463,26 @@ A multi-locale `ReportAgent` would expose the narrative language as a runtime pa
 │   │   └── e2e_validation.py
 │   └── tools/
 │       └── data_tools.py
+├── docs/
+│   └── Reply_projects.pdf          Reply project brief
 └── streamlit_app/                  Interactive dashboard (optional)
-    └── app.py
+    ├── app.py
+    └── agent_graph.jsx             React graph-visualisation component
 ```
 
-The classical pipeline is **inlined inside `main.ipynb`** so a reviewer can read the full implementation top-to-bottom without leaving the notebook. The multi-agent pipeline lives as a Python library because re-implementing the LangGraph DAG inline would erase the agent modularity that makes the orchestration meaningful.
+The classical pipeline exists in two equivalent forms: **inlined inside `main.ipynb`** so a reviewer can read the full implementation top-to-bottom, and as a runnable batch module in **`classical_pipeline/main.py`**. The multi-agent pipeline lives as a Python library because re-implementing the LangGraph DAG inline would erase the agent modularity that makes the orchestration meaningful.
 
 ---
 
-## 11. How to reproduce
+## 9. How to reproduce
 
-### 11.1 Requirements
+### 9.1 Requirements
 
 * Python ≥ 3.10
 * The two raw CSVs provided by Reply under NDA: `data/raw/ALLARMI.csv` and `data/raw/TIPOLOGIA_VIAGGIATORE.csv`. They are **not** redistributed in this repository.
 * Optionally, an Anthropic API key (only if you want the LLM narratives in §8 of the notebook).
 
-### 11.2 Setup
+### 9.2 Setup
 
 ```bash
 git clone https://github.com/DanieleGiovanardi2408/BackPropBandits-815601-.git
@@ -511,7 +501,7 @@ data/raw/
 └── TIPOLOGIA_VIAGGIATORE.csv
 ```
 
-### 11.3 Optional LLM narratives
+### 9.3 Optional LLM narratives
 
 The narration backend is selected by `LLM_BACKEND` in `.env` (see Section 5.4):
 
@@ -524,13 +514,13 @@ cp .env.example .env
 
 With `none` (or no key on the `anthropic` backend) the agent falls back to deterministic template narratives and skips every model call. All numerical results are unaffected: the narration layer sits downstream of detection and classification, so the convergence numbers in Section 6 do not depend on it.
 
-### 11.4 End-to-end run
+### 9.4 End-to-end run
 
 ```bash
 PYTHONPATH=. jupyter lab main.ipynb
 ```
 
-then `Run All`. The notebook is structured in **thirteen sections** that follow the actual workflow:
+then `Run All`. The notebook is structured in **twelve sections** that follow the actual workflow:
 
 | Section | Topic |
 |---|---|
@@ -543,8 +533,9 @@ then `Run All`. The notebook is structured in **thirteen sections** that follow 
 | 7 | Evaluation (silhouette, stability, SHAP) |
 | 8 | Multi-agent pipeline (LangGraph run) |
 | 9 | Comparative analysis (classical vs multi-agent) |
-| 10 | Threshold sensitivity |
-| 11 | Conclusions |
+| 10 | Bootstrap CI |
+| 11 | Threshold sensitivity |
+| 12 | Conclusions |
 
 End-to-end runtime on the 2024 perimeter (567 routes):
 
@@ -552,17 +543,17 @@ End-to-end runtime on the 2024 perimeter (567 routes):
 * with the local model, cold: about 6 minutes; pattern-dedup collapses the 38 CRITICAL+HIGH routes to around 23 narrated patterns, and re-runs are instant from cache
 * with cloud Claude: faster per call. On either backend, narrower perimeters and cache hits are seconds, not minutes
 
-### 11.5 Unit tests
+### 9.5 Unit tests
 
 ```bash
 PYTHONPATH=. python -m pytest multiagent_pipeline/tests/test_risk_profiling_agent.py -v
 ```
 
-13 unit tests cover the five business rules (one per rule, plus one verifying the `br_multi_source` floor), the `br_score` aggregation, the confidence-blend formula, and every cell of the final-risk classification ladder.
+13 unit tests cover the five business rules (one per rule; the `br_multi_source` test also checks the both-channels floor), the `br_score` aggregation, the confidence-blend formula, and every cell of the final-risk classification ladder.
 
 ---
 
-## 12. Reproducibility note on figures and tables
+## 10. Reproducibility note on figures and tables
 
 Every PNG and every numerical value cited in §6 is generated by `notebooks/08_report_assets.ipynb`, which reads the CSVs in `data/processed/` and writes the PNGs to `images/` and the underlying numeric summaries to `images/tables/`. To regenerate the assets, after running the two pipelines:
 

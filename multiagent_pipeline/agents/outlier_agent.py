@@ -4,8 +4,8 @@ Responsibilities (from the Reply slide):
     "Applies IsolationForest, LOF, or Z-score on the engineered features"
 
 Implements the three real models on sklearn, identical to classical notebook 04:
-    - IsolationForest  (contamination=0.03, random_state=42)
-    - LocalOutlierFactor (n_neighbors=20, contamination=0.03)
+    - IsolationForest  (contamination=0.10, random_state=42)
+    - LocalOutlierFactor (n_neighbors=20, contamination=0.10)
     - Z-score          (on BASELINE_FEATURES, already computed by BaselineAgent)
 
 Weighted ensemble with the same ENSEMBLE_WEIGHTS as the classical pipeline.

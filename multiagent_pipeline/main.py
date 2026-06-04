@@ -6,17 +6,15 @@ Graph topology (5 spec-mandated agents + 1 verifier, 4 data-driven branches):
                               │
               ┌─ baseline degenerate ─┴─ normal ─┐
               ▼                                  ▼
-            (skip)                          OutlierAgent
-              │                                  │
-              │              ┌──── HIGH ≥ 5 ─────┴─── HIGH < 5 ───┐
-              │              ▼                                    │
-              │        SupervisorAgent                            │
-              │              │                                    │
-              │   ┌── downgrade > 50 % AND iter < cap ──┐         │
-              │   ▼                                     ▼         │
-              │   ↑─── (cycle back to OutlierAgent)     RiskProfilingAgent ◄┘
-              │                                                   │
-              └──────────────► RiskProfilingAgent ────────────────┘
+             END                            OutlierAgent
+       (empty output;                            │
+        baseline_meta      ┌──── HIGH ≥ 5 ─────┴─── HIGH < 5 ───┐
+        explains why)      ▼                                    │
+                     SupervisorAgent                            │
+                           │                                    │
+                ┌── downgrade > 50 % AND iter < cap ──┐         │
+                ▼                                     ▼         │
+           (cycle back to OutlierAgent)         RiskProfilingAgent ◄┘
                                                        │
                                           [HIGH/MEDIUM present?]
                                                   ↓        ↓
@@ -26,11 +24,12 @@ Graph topology (5 spec-mandated agents + 1 verifier, 4 data-driven branches):
 
 Four real, data-driven conditional edges (separate from error-stop logic):
 
-    1. after_baseline → outlier | risk
-        Skips the heavy ML stack when the baseline signal is degenerate
-        (n_features < 5 OR baseline_score std too low). The route then
-        falls back to a pure rule-based path executed by the
-        RiskProfilingAgent on raw features.
+    1. after_baseline → outlier | end
+        Terminates the graph when the baseline signal is degenerate
+        (n_features < 5 OR baseline_score std too low). With no usable
+        ensemble_score to report, the run returns to END with a
+        `baseline_meta` diagnostic rather than fabricating labels from a
+        rule-only path.
     2. after_outlier  → supervisor | risk
         Routes through the SupervisorAgent only when there are enough
         first-pass HIGH routes (≥ 5) to make a stricter refit

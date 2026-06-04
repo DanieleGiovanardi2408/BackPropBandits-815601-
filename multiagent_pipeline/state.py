@@ -59,7 +59,7 @@ class AgentState(TypedDict):
     anomaly_meta: Optional[dict]          # n_high, n_medium, n_normal, thresholds used
 
     # ── SupervisorAgent output ────────────────────────────────────────────────
-    supervisor_meta: Optional[dict]       # n_first_pass_alta, n_robust_alta, n_downgraded
+    supervisor_meta: Optional[dict]       # n_first_pass_high, n_robust_high, n_downgraded
 
     # ── Cycle counter for the supervisor → outlier feedback loop ──────────────
     # Incremented every time OutlierAgent runs. The conditional edge
@@ -108,12 +108,14 @@ class Perimeter(BaseModel):
 #    to ensure a fair comparison between the two architectures.
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Ensemble weights — data-driven (winner of the grid search over the 4-simplex
-# with objective = 0.5 · bootstrap_stability + 0.5 · BR_rank_corr_01;
-# see multiagent_pipeline/src/ensemble_grid_search.py and the ablation study
-# in multiagent_pipeline/src/ensemble_ablation.py). These values supersede
-# the original principled defaults (0.35/0.30/0.15/0.20) which sat 3.5 %
-# below the grid optimum on the same objective.
+# Ensemble weights — chosen from the ablation study (each detector's role) and
+# validated against a grid search over the 4-simplex with
+# objective = 0.5 · bootstrap_stability + 0.5 · BR_rank_corr_01
+# (see ensemble_grid_search.py / ensemble_ablation.py). The objective surface is
+# a flat plateau: these weights sit in the top ~8% of the 969 vectors (~1.6%
+# below the max) and clearly beat the original literature defaults
+# (0.35/0.30/0.15/0.20, bottom third of the simplex). We do not claim a unique
+# optimum on an unsupervised, partly-circular objective — see README §4.4.1.
 ENSEMBLE_WEIGHTS = {
     "IF":  0.40,   # IsolationForest — strongest individual ranker (br_rank_corr=0.58)
     "LOF": 0.15,   # Local Outlier Factor — ablation flagged as redundant with IF
