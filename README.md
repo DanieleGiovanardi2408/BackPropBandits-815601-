@@ -83,19 +83,11 @@ Reply provides two CSV files at the bottom of `data/raw/` (NDA-protected, **not*
 
 ### 3.2 Temporal coverage
 
-The panel spans **three months only**: December 2023, January 2024, and February 2024. This is the most consequential constraint on the methodology. It rules out STL-style decomposition, which needs at least 12 observations per series, and forces us to fall back on cross-sectional robust statistics.
-
-![Monthly volume](images/dataset_monthly_volume.png)
-
-*Figure 1. Monthly volume of raw records. The dataset spans Dec-2023 to Feb-2024 with one off-cycle record carrying a `MESE_PARTENZA = 12` value (treated as Dec 2024 by the cleaner).*
+The panel spans **three months only**: December 2023, January 2024, and February 2024 (plus one off-cycle record with `MESE_PARTENZA = 12` that the cleaner treats as December 2024). This is the most consequential constraint on the methodology. It rules out STL-style decomposition, which needs at least 12 observations per series, and forces us to fall back on cross-sectional robust statistics.
 
 ### 3.3 Geographic coverage
 
-Routes terminate or originate at Italian airports (FCO, MXP, LIN, BLQ, NAP, …). The 15 most active departure countries by passenger volume:
-
-![Top countries](images/dataset_top_countries.png)
-
-*Figure 2. Top 15 departure countries by passenger volume entered into Italian territory.*
+Routes terminate or originate at Italian airports (FCO, MXP, LIN, BLQ, NAP, and others). Departure countries are dominated by neighbouring and high-traffic destinations; the full ranking by passenger volume is in `images/tables/top_countries_by_volume.csv`.
 
 ### 3.4 Unit of analysis
 
@@ -179,7 +171,7 @@ Two observations from the table. First, **dropping LOF leaves the top-17 unchang
 
 ![Ensemble ablation](images/ensemble_ablation.png)
 
-*Figure 3. Ablation result. Blue bars show top-17 overlap with the full ensemble; orange bars show the Spearman correlation between the ensemble score and the business-rule score.*
+*Figure 1. Ablation result. Blue bars show top-17 overlap with the full ensemble; orange bars show the Spearman correlation between the ensemble score and the business-rule score.*
 
 **Grid search** (`ensemble_grid_search.py`). We enumerate the 4-simplex of weight vectors at step 0.05 (all four weights strictly positive, summing to one, around 969 vectors) and score every vector by
 
@@ -199,7 +191,7 @@ The grid result agrees with the ablation. IF stays the heaviest weight (+0.05); 
 
 ![Grid search heatmap](images/ensemble_grid_search_heatmap.png)
 
-*Figure 4. Marginal heatmap of the grid-search objective over (w_IF, w_Z), max over w_LOF and w_AE. The black star marks the current production weights (the grid-search winner). The objective surface is smooth around the winner: small perturbations of the weights do not change the verdict, which is the relevant robustness check.*
+*Figure 2. Marginal heatmap of the grid-search objective over (w_IF, w_Z), max over w_LOF and w_AE. The black star marks the current production weights (the grid-search winner). The objective surface is smooth around the winner: small perturbations of the weights do not change the verdict, which is the relevant robustness check.*
 
 **Caveat.** The Z component uses MAD z-scores of the same 13 features that the business rules read, so a high `Z ↔ br_score` correlation is partly mechanical. We chose this objective deliberately, since operational alignment is part of what the brief asks for, but we do not claim the grid optimum is uniquely correct. It is the best weight vector under a stated, reproducible objective, which is the most we can claim in an unsupervised setting.
 
@@ -207,7 +199,7 @@ The 567 routes split into three buckets at **data-driven thresholds**: the p97 o
 
 ![Ensemble distribution](images/ensemble_score_distribution.png)
 
-*Figure 5. Distribution of the ensemble anomaly score across 567 routes, with the data-driven p97 (HIGH) and p90 (MEDIUM) thresholds.*
+*Figure 3. Distribution of the ensemble anomaly score across 567 routes, with the data-driven p97 (HIGH) and p90 (MEDIUM) thresholds.*
 
 ### 4.5 Business rules
 
@@ -227,7 +219,7 @@ Each rule is binary. `br_score = mean(br_*) ∈ [0, 1]` is the aggregate.
 
 ![Business rule hits](images/business_rule_hits.png)
 
-*Figure 6. Business-rule hit frequency on the 567-route population. Both pipelines produce identical counts on every rule (zero delta), so `br_score` Pearson r between the two pipelines is exactly 1.000 by construction.*
+*Figure 4. Business-rule hit frequency on the 567-route population. Both pipelines produce identical counts on every rule (zero delta), so `br_score` Pearson r between the two pipelines is exactly 1.000 by construction.*
 
 ### 4.6 Final risk classification
 
@@ -326,7 +318,7 @@ We serve the local model through LM Studio: it is loaded once and exposed over a
 
 ![LM Studio local server settings](images/lmstudio_local_server_settings.png)
 
-*Figure 7. LM Studio serving `qwen2.5-3b-instruct` (Q4, 1.93 GB) on the CPU-only server: context length 1024, GPU offload 0, four CPU threads, single concurrent request, Flash Attention on, model kept in memory. Operational screenshot, not one of the analysis figures of §6.*
+*Figure 5. LM Studio serving `qwen2.5-3b-instruct` (Q4, 1.93 GB) on the CPU-only server: context length 1024, GPU offload 0, four CPU threads, single concurrent request, Flash Attention on, model kept in memory. Operational screenshot, not one of the analysis figures of §6.*
 
 > **Caveat on the benchmark sample.** The model comparison runs on a small set of synthetic representative routes (no NDA data). The latency and faithfulness figures are indicative, not population statistics. They are reproducible and shareable, which is what we need to justify a backend choice; they are not a claim about every possible route.
 
@@ -367,23 +359,15 @@ Both pipelines produce **identical anomaly-label distributions** on the 567 rout
 
 ![Risk-label distribution](images/risk_label_distribution.png)
 
-*Figure 8. Side-by-side comparison of label distributions. The two pipelines produce identical splits at both the ensemble layer (HIGH/MEDIUM/NORMAL) and the post-rule layer (CRITICAL/HIGH/MEDIUM/LOW), as a direct consequence of the shared AE module and the aligned business-rule layer.*
+*Figure 6. Side-by-side comparison of label distributions. The two pipelines produce identical splits at both the ensemble layer (HIGH/MEDIUM/NORMAL) and the post-rule layer (CRITICAL/HIGH/MEDIUM/LOW), as a direct consequence of the shared AE module and the aligned business-rule layer.*
 
 ### 6.2 Top anomalous routes
 
-The 15 routes with the highest ensemble score (multi-agent pipeline). All 15 are above the p97 threshold and labelled HIGH. The maximum score on this dataset is 0.813, on Casablanca to Bologna (`CMN-BLQ`).
-
-![Top routes](images/top_routes_anomaly_score.png)
-
-*Figure 9. Top 15 routes by ensemble anomaly score on the multi-agent pipeline. Colour encodes the anomaly_label.*
+The 15 routes with the highest ensemble score (multi-agent pipeline) are all above the p97 threshold and labelled HIGH. The maximum score on this dataset is 0.813, on Casablanca to Bologna (`CMN-BLQ`), followed by `SIN-MXP` (0.669), `ALG-MXP` (0.659), `PVG-MXP` (0.611) and `RMO-MXP` (0.607). The full ranked list is in `images/tables/top15_anomalous_routes.csv`.
 
 ### 6.3 Per-route agreement
 
-The two pipelines agree on **567 of 567 anomaly labels (100.00 %)** and on **567 of 567 final-risk labels (100.00 %)**. The confusion matrix is therefore strictly diagonal.
-
-![Confusion matrix](images/anomaly_label_confusion_matrix.png)
-
-*Figure 10. Confusion matrix on anomaly_label (rows = classical, columns = multi-agent). All 567 routes sit on the diagonal; the off-diagonal entries are zero.*
+The two pipelines agree on **567 of 567 anomaly labels (100.00 %)** and on **567 of 567 final-risk labels (100.00 %)**. The 3x3 confusion matrix on `anomaly_label` (HIGH/MEDIUM/NORMAL) is strictly diagonal: 17/17 on HIGH, 40/40 on MEDIUM, 510/510 on NORMAL, zeros off-diagonal. The raw counts are in `images/tables/anomaly_label_confusion_matrix.csv`.
 
 ### 6.4 Score correlation
 
@@ -391,7 +375,7 @@ The Pearson correlation between the two pipelines' final scalar scores is 0.9999
 
 ![Score correlation](images/score_correlation_classical_vs_multiagent.png)
 
-*Figure 11. Per-route score correlation. Each point is a route, coloured by the multi-agent anomaly label. Dashed line: y = x. The points sit on the diagonal; the only visible spread lives in the NORMAL band, where small score perturbations do not move the label.*
+*Figure 7. Per-route score correlation. Each point is a route, coloured by the multi-agent anomaly label. Dashed line: y = x. The points sit on the diagonal; the only visible spread lives in the NORMAL band, where small score perturbations do not move the label.*
 
 ### 6.5 Business-rule alignment
 
@@ -408,11 +392,7 @@ The pre-fix CI is the substantive number: it shows the convergence claim is not 
 
 ### 6.7 Threshold sensitivity
 
-We perturb each of the five BR thresholds independently by ±5 % and ±10 % and recompute the final-risk count. The dataset is structurally robust: only three thresholds (`high_alarm_rate`, `high_rejection_rate`, `multi_source_pct`) move the count of CRITICAL + HIGH routes at all, and at most by a single route (2.6 % swing relative to the 38-route baseline).
-
-![Threshold sensitivity](images/threshold_sensitivity.png)
-
-*Figure 12. Sensitivity of the HIGH and CRITICAL counts to ±10 % and ±5 % perturbations of the five BR thresholds. Cells report the number of routes flagged at that level under each perturbation.*
+We perturb each of the five BR thresholds independently by ±5 % and ±10 % and recompute the final-risk count. The dataset is structurally robust: only three thresholds (`high_alarm_rate`, `high_rejection_rate`, `multi_source_pct`) move the count of CRITICAL + HIGH routes at all, and at most by a single route (2.6 % swing relative to the 38-route baseline). The two remaining thresholds (`low_closure_rate`, `low_closure_volume`) do not move the count under any of the perturbations tested. The full per-cell table is in `images/tables/threshold_sensitivity_long.csv` and the per-threshold summary in `images/tables/threshold_sensitivity_summary.csv`.
 
 ### 6.8 Feature importance
 
@@ -420,7 +400,7 @@ A surrogate Gradient Boosting classifier trained to predict the ensemble flag fr
 
 ![Feature importance and SHAP](images/feature_importance_shap.png)
 
-*Figure 13. Surrogate feature importance (left) and mean SHAP value (right), top 10 features. The SHAP values are computed against the surrogate model and serve as an interpretability hint, not as a faithful explanation of the ensemble itself.*
+*Figure 8. Surrogate feature importance (left) and mean SHAP value (right), top 10 features. The SHAP values are computed against the surrogate model and serve as an interpretability hint, not as a faithful explanation of the ensemble itself.*
 
 ---
 
