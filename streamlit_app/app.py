@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -19,7 +20,9 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from multiagent_pipeline.main import run_pipeline
-from multiagent_pipeline.config import get_anthropic_api_key
+from multiagent_pipeline.config import (
+    get_anthropic_api_key, get_anthropic_model, get_llm_backend, get_llm_model,
+)
 
 
 st.set_page_config(
@@ -976,17 +979,30 @@ def _stage_table(summary: dict) -> pd.DataFrame:
     ])
 
 
+_IT2EN_LABEL = {
+    "ALTA": "HIGH", "MEDIA": "MEDIUM", "NORMALE": "NORMAL", "BASSA": "LOW",
+    "CRITICO": "CRITICAL", "ALTO": "HIGH", "MEDIO": "MEDIUM", "BASSO": "LOW",
+}
+
+
 @st.cache_data(show_spinner=False)
 def _load_classical_report() -> pd.DataFrame | None:
     """Load the classical pipeline report (pre-computed).
-    Tries final_report.csv first, then anomaly_results.csv."""
+    Tries final_report.csv first, then anomaly_results.csv. Normalises any legacy
+    Italian labels (ALTA/MEDIA/NORMALE, CRITICO/…) to the canonical English schema
+    so the comparison matches the multi-agent labels (else label agreement = 0%)."""
     for name in ("final_report.csv", "anomaly_results.csv"):
         cl_path = PROJECT_ROOT / "data" / "processed" / name
         if cl_path.exists():
             try:
-                return pd.read_csv(cl_path)
+                df = pd.read_csv(cl_path)
             except Exception:
                 continue
+            for col in ("anomaly_label", "final_risk", "risk_level"):
+                if col in df.columns:
+                    df[col] = (df[col].astype(str).str.strip().str.upper()
+                               .map(lambda v: _IT2EN_LABEL.get(v, v)))
+            return df
     return None
 
 
@@ -1074,22 +1090,56 @@ def main() -> None:
         zona     = st.selectbox("Zone", options["zone"], index=0, disabled=not use_zona)
 
         st.divider()
-        has_api_key = bool(get_anthropic_api_key())
-        run_report  = st.checkbox(
-            "Enable LLM Report (Anthropic)",
-            value=has_api_key,
-            help="Requires ANTHROPIC_API_KEY environment variable.",
+        # ── LLM backend selector — overrides LLM_BACKEND for this run, no restart ──
+        _BACKENDS = {
+            "Local (Qwen, free)":      ("openai_compatible", f"local · {get_llm_model()}"),
+            "Claude (cloud)":          ("anthropic",         f"Claude · {get_anthropic_model()}"),
+            "Templates only (no LLM)": ("none",              "templates"),
+        }
+        _default_idx = {"openai_compatible": 0, "anthropic": 1, "none": 2}.get(get_llm_backend(), 0)
+        _choice = st.radio(
+            "LLM backend", list(_BACKENDS), index=_default_idx,
+            help="Switch the report engine without restarting. Local = on-prem & free; "
+                 "Claude = cloud (needs an API key); Templates = deterministic, no LLM.",
         )
+        _backend, _label = _BACKENDS[_choice]
+        os.environ["LLM_BACKEND"] = _backend            # read live by config.get_llm_backend()
+
+        # Claude needs a key — accept one for this session if .env has none.
+        if _backend == "anthropic" and not get_anthropic_api_key():
+            _key = st.text_input("Anthropic API key", type="password",
+                                 help="Used only for this session; never written to disk.")
+            if _key:
+                os.environ["ANTHROPIC_API_KEY"] = _key
+
+        llm_ready = (_backend != "anthropic") or bool(get_anthropic_api_key())
+        run_report = st.checkbox("Enable LLM Report", value=llm_ready)
         dry_run = st.checkbox(
             "Dry run report (no LLM calls)",
-            value=not has_api_key,
-            help="Generate report without consuming API credits.",
+            value=not llm_ready,
+            help="Deterministic templates only — no LLM cost/latency.",
         )
         save_outputs      = st.checkbox("Save outputs to disk",        value=True)
         continue_on_error = st.checkbox("Continue if a stage fails",   value=False)
 
         st.divider()
         run = st.button("Run pipeline", use_container_width=True, type="primary")
+
+        # ── Narration cache control (secondary utility, kept at the bottom) ───
+        st.divider()
+        _cache_path = PROJECT_ROOT / "data" / "processed" / "llm_report_cache.json"
+        _n_cached = 0
+        if _cache_path.exists():
+            try:
+                _n_cached = len(json.loads(_cache_path.read_text()))
+            except Exception:
+                _n_cached = 0
+        if st.button(f"🗑️  Clear narration cache ({_n_cached})", use_container_width=True):
+            try:
+                _cache_path.unlink(missing_ok=True)
+                st.success(f"Cleared {_n_cached} cached narrations — next run will be cold.")
+            except Exception as e:  # noqa: BLE001
+                st.error(f"Could not clear cache: {e}")
 
     # ── Pipeline execution ────────────────────────────────────────────────────
     if run:
@@ -1100,8 +1150,9 @@ def main() -> None:
             aeroporto_arrivo=""   if apt_arr == "(all)" else apt_arr,
             zona=int(zona) if use_zona else None,
         )
-        if run_report and not get_anthropic_api_key():
-            st.warning("`ANTHROPIC_API_KEY` not set — LLM report automatically disabled.")
+        if run_report and get_llm_backend() == "anthropic" and not get_anthropic_api_key():
+            st.warning("`ANTHROPIC_API_KEY` not set — LLM report disabled. "
+                       "Set `LLM_BACKEND=openai_compatible` in .env to use a local model.")
             run_report = False
 
         st.markdown("""
