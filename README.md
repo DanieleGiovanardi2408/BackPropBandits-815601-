@@ -51,7 +51,7 @@ The 100 % label agreement is a property of the code, not a coincidence. The Auto
 
 ### 2.1 The brief
 
-Reply assigned an automated **dataset-validation use case** as the framing for Project 2 of the *Backpropagation Bandits* LUISS course. The scenario is a digital platform of the Italian Ministry of Economy and Finance (MEF) that ingests heterogeneous datasets from third-party authorities and validates them automatically. The deliverable asks for an anomaly-detection system that could be plugged into such a platform, accepting heterogeneous tabular records, producing a route-level risk classification and a human-readable explanation per HIGH/MEDIUM route, and surfacing the results to an analyst.
+Reply assigned an automated **dataset-validation use case** as the framing for Project 2 of the *Machine Learning* LUISS course. The scenario is a digital platform of the Italian Ministry of Economy and Finance (MEF) that ingests heterogeneous datasets from third-party authorities and validates them automatically. The deliverable asks for an anomaly-detection system that could be plugged into such a platform, accepting heterogeneous tabular records, producing a route-level risk classification and a human-readable explanation per HIGH/MEDIUM route, and surfacing the results to an analyst.
 
 The dataset Reply provided is **not** the platform's own data: it is a sample of border-control passenger transits at Italian airports, used as an example of the kind of heterogeneous third-party dataset such a platform would receive. The 567 origin/destination route pairs are the unit of analysis a customs officer would work with operationally.
 
